@@ -466,9 +466,10 @@
             <div class="mb-1">
               <label class="form-label fw-semibold">Status</label>
               <select class="form-select" id="statusLeitoNovo" required>
-                <option value="Livre">Livre</option>
+                <option value="Livre">Disponível</option>
                 <option value="Reservado">Reservado</option>
                 <option value="Bloqueado">Bloqueado</option>
+                <option value="Higienizacao">Higienização Pendente</option>
               </select>
             </div>
           </div>
@@ -925,6 +926,9 @@
       document.getElementById('intObservacaoWrap').classList.toggle('d-none', !(ehUtiMaterna || ehAlcon));
       document.getElementById('pesoNascerPadraoWrap').classList.toggle('d-none', !showPeso || ehUcinca);
       document.getElementById('pesoNascerUcincaWrap').classList.toggle('d-none', !showPeso || !ehUcinca);
+      // FIX 1: quando a internação é da Mãe (MAE no ALCON) ou da UTI Materna, a faixa de peso não se
+      // aplica — os radios ocultos também são desabilitados para nunca enviarem valor ao servidor.
+      document.querySelectorAll('input[name="pesoNascer"], input[name="pesoNascerUcinca"]').forEach(r => { r.disabled = !showPeso; });
       if (ehUtiMaterna) {
         document.getElementById('intSexo').value = 'F';
         document.getElementById('intNomeLabel').textContent = 'Nome da Paciente';
@@ -1407,7 +1411,7 @@
       const statusPadrao = atual.toUpperCase() === 'RESERVA' ? 'Reservado' : atual;
       document.getElementById('statusLeitoId').value = leito.ID_Leito;
       document.getElementById('statusLeitoNumero').value = leito.Numero_Leito || '';
-      document.getElementById('statusLeitoNovo').value = ['Livre', 'Reservado', 'Bloqueado'].includes(statusPadrao) ? statusPadrao : 'Livre';
+      document.getElementById('statusLeitoNovo').value = ['Livre', 'Reservado', 'Bloqueado', 'Higienizacao'].includes(statusPadrao) ? statusPadrao : 'Livre';
 
       const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAlterarStatusLeito'));
       modal.show();
@@ -1653,8 +1657,10 @@
         const coincide = !texto || nome.includes(texto) || nomesAlcon.includes(texto) || num.includes(texto);
         if (!coincide) return;
 
+        const rotuloStatus = { Livre: 'Disponível', Ocupado: 'Ocupado', Reserva: 'Reservado', Reservado: 'Reservado', Bloqueado: 'Bloqueado', Higienizacao: 'Higienização Pendente' }[leito.Status] || leito.Status;
         const icon = leito.Status === 'Livre' ? 'bi-check-circle-fill' : 
                      leito.Status === 'Ocupado' ? 'bi-person-fill' : 
+                     leito.Status === 'Higienizacao' ? 'bi-stars' :
                      (leito.Status === 'Reserva' || leito.Status === 'Reservado') ? 'bi-clock-fill' : 'bi-slash-circle-fill';
 
         let detalhe = '';
@@ -1710,10 +1716,11 @@
                 <i class="bi ${icon} fs-4"></i>
               </div>
               <div class="d-flex justify-content-between align-items-center mt-2">
-                <span class="fw-semibold">Status: ${leito.Status}</span>
+                <span class="fw-semibold">Status: ${rotuloStatus}</span>
                 ${leito.Status !== 'Ocupado' ? `
                   <div class="d-flex gap-1" onclick="event.stopPropagation();">
                     ${leito.Status === 'Livre' ? `<button type="button" class="btn btn-sm btn-success fw-semibold" onclick="event.stopPropagation(); abrirNovaInternacaoNoLeito('${leito.ID_Leito}')"><i class="bi bi-person-plus-fill me-1"></i>Admitir aqui</button>` : ''}
+                    ${leito.Status === 'Higienizacao' ? `<button type="button" class="btn btn-sm btn-info text-white fw-semibold" onclick="event.stopPropagation(); concluirHigienizacao('${leito.ID_Leito}')"><i class="bi bi-stars me-1"></i>Concluir Higienização</button>` : ''}
                     <button type="button" class="btn btn-sm btn-outline-secondary fw-semibold" onclick="event.stopPropagation(); abrirAlterarStatusLeito('${leito.ID_Leito}')"><i class="bi bi-sliders me-1"></i>Alterar Status</button>
                   </div>` : ''}
               </div>
@@ -1760,6 +1767,9 @@
               <i class="bi bi-clipboard2-pulse me-1"></i>${leito.Exame_Externo === 'Sim' ? 'Marcar retorno do exame' : 'Exame Externo'}
             </button>
             ${leito.idInternacao ? `
+            <button type="button" class="btn btn-sm btn-outline-primary fw-semibold" onclick="event.stopPropagation(); abrirProntuarioPEP('${leito.idInternacao}')">
+              <i class="bi bi-journal-medical me-1"></i>Prontuário (PEP)
+            </button>
             <button type="button" class="btn btn-sm btn-outline-primary fw-semibold" onclick="event.stopPropagation(); abrirTrocaLeito('${leito.idInternacao}')">
               <i class="bi bi-arrow-left-right me-1"></i>Trocar Leito
             </button>
@@ -2039,6 +2049,20 @@
 
     function mudarStatus(leitoId, novoStatus) {
       google.script.run.withSuccessHandler(carregarDashboard).alterarStatusLeito(leitoId, novoStatus);
+    }
+
+    // FASE 5 — giro de leitos: a equipe de higienização conclui a limpeza e o leito volta a ficar
+    // Disponível. Também permitimos encaminhar um leito vago para higienização.
+    function concluirHigienizacao(leitoId) {
+      google.script.run
+        .withSuccessHandler(() => carregarDashboard())
+        .withFailureHandler(err => alert(err && err.message ? err.message : 'Não foi possível concluir a higienização.'))
+        .concluirHigienizacao(leitoId);
+    }
+    // FASE 4 — abre o Prontuário Eletrônico (PEP) do paciente em uma nova aba.
+    function abrirProntuarioPEP(idInternacao) {
+      if (!idInternacao) return;
+      window.open('/?view=prontuario&token=' + encodeURIComponent(token) + '&id=' + encodeURIComponent(idInternacao), '_blank');
     }
 
     function excluirLeito(leitoId) {

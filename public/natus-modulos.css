@@ -104,3 +104,74 @@
 .kb-legenda span { display: inline-flex; align-items: center; gap: 6px; }
 .kb-legenda i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 .kb-drop-hint { border: 2px dashed var(--primary); border-radius: var(--radius-md); margin: 12px; padding: 14px; text-align: center; color: var(--primary); font-weight: 700; font-size: .82rem; background: var(--primary-soft); }
+
+/* ---------- 4. FASE 5 — Giro de leitos: Higienização Pendente ---------- */
+.status-Higienizacao { --st: var(--info); --st-soft: var(--info-soft); }
+.bed-card.status-Higienizacao { border-color: var(--info) !important; }
+.bed-card.status-Higienizacao::before { background: var(--info); }
+
+/* ---------- 5. FASE 4 — Prontuário Eletrônico (PEP) ---------- */
+.pep-header {
+  display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between;
+  background: linear-gradient(135deg, var(--primary-soft), transparent);
+  border: 1px solid var(--border); border-left: 5px solid var(--primary);
+  border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow); margin-bottom: 18px;
+}
+.pep-nome { font-size: 1.35rem; font-weight: 800; letter-spacing: -.02em; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pep-nome .badge { font-size: .72rem; font-weight: 700; }
+.pep-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+@media (max-width: 900px) { .pep-cols { grid-template-columns: 1fr; } }
+.pep-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow-sm); }
+.pep-card-titulo { font-weight: 800; font-size: .9rem; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; color: var(--text); }
+.pep-card-titulo i { color: var(--primary); }
+.pep-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px 16px; }
+.pep-grid > div { display: flex; flex-direction: column; gap: 2px; }
+.pep-grid span { font-size: .72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.pep-grid b { font-size: .95rem; }
+.pep-nascimento { background: linear-gradient(135deg, var(--info-soft), transparent); border-left: 5px solid var(--info); }
+.pep-vinculo {
+  display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--border);
+  border-radius: var(--radius-md); margin-bottom: 8px; cursor: pointer; transition: .15s ease; background: var(--card-2);
+}
+.pep-vinculo:hover { border-color: var(--primary); box-shadow: 0 0 0 3px var(--ring); }
+.pep-vinculo > div { flex: 1; }
+.pep-vinculo > i { color: var(--muted); }
+.pep-tabs { gap: 8px; margin-bottom: 14px; }
+.pep-tabs .nav-link { font-weight: 700; font-size: .85rem; color: var(--text-2); border-radius: 999px; }
+.pep-tabs .nav-link.active { background: var(--primary); color: #fff; }
+.pep-tabcontent { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow-sm); }
+.pep-evo { border: 1px solid var(--border); border-left: 4px solid var(--slate); border-radius: var(--radius-md); padding: 12px 14px; margin-bottom: 12px; background: var(--card-2); }
+.pep-evo-medico { border-left-color: var(--primary); }
+.pep-evo-enfermagem { border-left-color: var(--ok); }
+.pep-evo-outro { border-left-color: var(--info); }
+.pep-evo-topo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.pep-evo-cat { font-size: .72rem; font-weight: 800; padding: 3px 10px; border-radius: 999px; background: var(--slate-soft); color: var(--slate); text-transform: uppercase; letter-spacing: .03em; }
+.pep-soap { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; font-size: .86rem; }
+.pep-soap b { color: var(--primary); }
+@media (max-width: 700px) { .pep-soap { grid-template-columns: 1fr; } }
+.pep-presc { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 14px; margin-bottom: 12px; background: var(--card-2); }
+.pep-timeline { list-style: none; padding: 0; margin: 0; }
+.pep-timeline li { position: relative; padding: 0 0 16px 26px; border-left: 2px solid var(--border); }
+.pep-timeline li:last-child { border-left-color: transparent; padding-bottom: 0; }
+.pep-timeline li::before { content: ''; position: absolute; left: -7px; top: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+
+/* ---------- 6. FASE 5 — BI Gerencial ---------- */
+.bi-filtros {
+  display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end;
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px 18px; box-shadow: var(--shadow-sm); margin-bottom: 18px;
+}
+.bi-filtros > div { min-width: 150px; }
+.bi-filtros-acoes { margin-left: auto; min-width: auto; }
+.bi-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow-sm); }
+.bi-card-titulo { font-weight: 800; font-size: .92rem; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.bi-card-titulo i { color: var(--primary); }
+.bi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; }
+@media (max-width: 700px) { .bi-grid { grid-template-columns: 1fr; } }
+.bi-mini { display: flex; align-items: center; gap: 10px; font-size: .85rem; }
+.bi-mini-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.bi-mini-rot { color: var(--muted); font-weight: 600; }
+.bi-mini-val { margin-left: auto; font-weight: 800; font-size: 1.05rem; }
+.bi-higienizacao-box { background: var(--warn-soft); border: 1px solid var(--warn); border-radius: var(--radius); padding: 16px 18px; }
+.bi-higienizacao-box .bi-card-titulo { color: var(--warn); }
+.bi-higienizacao-box .bi-card-titulo i { color: var(--warn); }

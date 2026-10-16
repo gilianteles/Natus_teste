@@ -127,10 +127,27 @@
     var c = card(idCard); if (!c) return;
     var opcoesColuna = COLUNAS.map(function (x) { return '<option value="' + x.id + '"' + (x.id === c.coluna ? ' selected' : '') + '>' + esc(x.titulo) + '</option>'; }).join('');
     var opcoesPrio = ['Rotina', 'Prioridade', 'Urgente'].map(function (p) { return '<option value="' + p + '"' + (p === c.prioridade ? ' selected' : '') + '>' + p + '</option>'; }).join('');
+    // Regulação: enquanto não há internação ativa, o regulador pode internar a paciente direto pelo card.
+    var podeInternar = !c.idInternacao;
+    var blocoInternar = podeInternar
+      ? '<div class="border-top pt-3 mt-3">' +
+          '<div class="fw-semibold mb-2"><i class="bi bi-hospital me-1"></i>Internar a paciente (Regulação)</div>' +
+          '<div class="row g-2">' +
+          '<div class="col-md-6"><label class="form-label small mb-1">Setor de destino</label><select class="form-select form-select-sm" id="kbIntSetor" onchange="kbCarregarLeitos()"><option value="">Selecione...</option></select></div>' +
+          '<div class="col-md-6"><label class="form-label small mb-1">Leito</label><select class="form-select form-select-sm" id="kbIntLeito"><option value="">Selecione o setor primeiro</option></select></div>' +
+          '<div class="col-6 col-md-3"><label class="form-label small mb-1">Data</label><input type="date" class="form-control form-control-sm" id="kbIntData"></div>' +
+          '<div class="col-6 col-md-3"><label class="form-label small mb-1">Hora</label><input type="time" class="form-control form-control-sm" id="kbIntHora"></div>' +
+          '<div class="col-6 col-md-3 d-none" id="kbIntTipoWrap"><label class="form-label small mb-1">Tipo</label><select class="form-select form-select-sm" id="kbIntTipo"><option value="RN">RN (recém-nascido)</option><option value="MAE">Mãe</option></select></div>' +
+          '<div class="col-6 col-md-3"><label class="form-label small mb-1">Procedência</label><input class="form-control form-control-sm" id="kbIntProc" value="ACR"></div>' +
+          '</div>' +
+          '<button class="btn btn-natus btn-sm fw-semibold mt-3" onclick="kbInternar(\'' + c.idCard + '\')"><i class="bi bi-box-arrow-in-down me-1"></i>Confirmar internação</button>' +
+        '</div>'
+      : '';
     el('kbDetalheBody').innerHTML =
       '<div class="mb-3"><div class="fw-bold fs-5">' + esc(c.nome) + '</div>' +
       '<div class="small text-muted">Nasc.: ' + esc(c.dataNascimento || '—') + ' · CPF: ' + esc(c.cpf || '—') + ' · SUS: ' + esc(c.cartaoSus || '—') + '</div>' +
-      '<div class="small text-muted">' + (c.setor ? 'Leito: ' + esc(c.setor) + (c.numeroLeito ? ' · ' + esc(c.numeroLeito) : '') : 'Sem leito atribuído') + ' · Entrada: ' + esc(c.dataHoraEntrada || '—') + '</div></div>' +
+      '<div class="small text-muted">' + (c.setor ? 'Leito: ' + esc(c.setor) + (c.numeroLeito ? ' · ' + esc(c.numeroLeito) : '') : 'Sem leito atribuído') + ' · Entrada: ' + esc(c.dataHoraEntrada || '—') + '</div>' +
+      (c.idInternacao ? '<button class="btn btn-sm btn-outline-primary mt-2 fw-semibold" onclick="kbAbrirProntuario(\'' + esc(c.idInternacao) + '\')"><i class="bi bi-journal-medical me-1"></i>Abrir prontuário (PEP)</button>' : '') + '</div>' +
       '<div class="row g-2">' +
       '<div class="col-md-6"><label class="form-label">Coluna</label><select class="form-select" id="kbCardColuna">' + opcoesColuna + '</select></div>' +
       '<div class="col-md-6"><label class="form-label">Prioridade</label><select class="form-select" id="kbCardPrioridade">' + opcoesPrio + '</select></div>' +
@@ -138,11 +155,62 @@
       '<div class="col-md-6"><label class="form-label">Atualizado em</label><input class="form-control" value="' + esc(c.atualizadoEm || '—') + '" readonly></div>' +
       '<div class="col-12"><label class="form-label">Observações da regulação</label><textarea class="form-control" id="kbCardObs" rows="3">' + esc(c.observacao) + '</textarea></div>' +
       '</div>' +
+      blocoInternar +
       '<div class="d-flex justify-content-between mt-4">' +
       '<button class="btn btn-outline-danger btn-sm" onclick="kbRemover(\'' + c.idCard + '\')"><i class="bi bi-trash me-1"></i>Retirar do quadro</button>' +
       '<button class="btn btn-natus fw-semibold" onclick="kbSalvarCard(\'' + c.idCard + '\')"><i class="bi bi-check-lg me-1"></i>Salvar alterações</button>' +
       '</div>';
     bootstrap.Modal.getOrCreateInstance(el('modalCardKanban')).show();
+    if (podeInternar) kbCarregarSetoresParaInternar();
+  }
+
+  /* ---------- internação pelo card (regulação) ---------- */
+  var SETORES_ALCON = ['ALCON 1', 'ALCON 2'];
+  function agora() { var d = new Date(); var p = function (n) { return String(n).padStart(2, '0'); }; return { data: d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()), hora: p(d.getHours()) + ':' + p(d.getMinutes()) }; }
+  function kbCarregarSetoresParaInternar() {
+    var sel = el('kbIntSetor'), lt = el('kbIntLeito'); if (!sel || !lt) return;
+    var t = agora(); if (el('kbIntData')) el('kbIntData').value = t.data; if (el('kbIntHora')) el('kbIntHora').value = t.hora;
+    if (el('kbIntProc') && !el('kbIntProc').value) el('kbIntProc').value = 'ACR';
+    if (sel.dataset.carregado) return; sel.dataset.carregado = '1';
+    google.script.run.withSuccessHandler(function (setores) {
+      sel.innerHTML = '<option value="">Selecione...</option>' + (setores || []).map(function (s) { var nome = (s && s.Nome_Setor) ? s.Nome_Setor : s; return '<option value="' + esc(nome) + '">' + esc(nome) + '</option>'; }).join('');
+    }).withFailureHandler(function (err) { toast(err && err.message ? err.message : 'Falha ao carregar setores.', 'erro'); }).obterSetores();
+  }
+  function kbCarregarLeitos() {
+    var setor = el('kbIntSetor') ? el('kbIntSetor').value : '';
+    var sel = el('kbIntLeito'); if (!sel) return;
+    var wrapTipo = el('kbIntTipoWrap');
+    var ehAlcon = SETORES_ALCON.indexOf(String(setor).trim().toUpperCase()) !== -1;
+    if (wrapTipo) wrapTipo.classList.toggle('d-none', !ehAlcon);
+    if (!setor) { sel.innerHTML = '<option value="">Selecione o setor primeiro</option>'; return; }
+    sel.innerHTML = '<option value="">Carregando...</option>';
+    google.script.run.withSuccessHandler(function (leitos) {
+      if (!leitos || !leitos.length) { sel.innerHTML = '<option value="">Nenhum leito disponível neste setor</option>'; return; }
+      sel.innerHTML = '<option value="">Selecione o leito...</option>' + leitos.map(function (l) { return '<option value="' + esc(l.ID_Leito) + '">' + esc(l.Numero_Leito) + (l.Status && l.Status !== 'Livre' ? ' — ' + esc(l.Status) : '') + '</option>'; }).join('');
+    }).withFailureHandler(function (err) { sel.innerHTML = '<option value="">Erro ao consultar leitos</option>'; toast(err && err.message ? err.message : 'Falha ao consultar leitos.', 'erro'); })
+      .getLeitosDisponiveisSetor(setor);
+  }
+  function kbInternar(idCard) {
+    var setor = el('kbIntSetor').value, leitoId = el('kbIntLeito').value;
+    if (!setor) { toast('Selecione o setor de destino.', 'erro'); return; }
+    if (!leitoId) { toast('Selecione o leito de destino.', 'erro'); return; }
+    var wrapTipo = el('kbIntTipoWrap');
+    var tipoPaciente = (wrapTipo && !wrapTipo.classList.contains('d-none')) ? el('kbIntTipo').value : '';
+    var payload = { idCard: idCard, setor: setor, leitoId: leitoId, data: el('kbIntData').value, hora: el('kbIntHora').value,
+      procedencia: (el('kbIntProc') || {}).value || 'ACR', tipoPaciente: tipoPaciente || undefined };
+    atualizandoGrade = true;
+    google.script.run.withSuccessHandler(function () {
+      atualizandoGrade = false;
+      bootstrap.Modal.getInstance(el('modalCardKanban')).hide();
+      toast('Paciente internado — card movido para "Internado / Ativo".', 'ok');
+      carregarKanban();
+    }).withFailureHandler(function (err) { atualizandoGrade = false; toast(err && err.message ? err.message : 'Não foi possível internar a paciente.', 'erro'); })
+      .internarCardKanban(payload);
+  }
+  function kbAbrirProntuario(idInternacao) {
+    if (!idInternacao) return;
+    var t = tokenAtual();
+    window.open('/?view=prontuario&token=' + encodeURIComponent(t) + '&id=' + encodeURIComponent(idInternacao), '_blank');
   }
 
   function kbSalvarCard(idCard) {
@@ -225,6 +293,9 @@
   window.kbBuscarPaciente = kbBuscarPaciente;
   window.kbEscolherPaciente = kbEscolherPaciente;
   window.kbSalvarNovoCard = kbSalvarNovoCard;
+  window.kbCarregarLeitos = kbCarregarLeitos;
+  window.kbInternar = kbInternar;
+  window.kbAbrirProntuario = kbAbrirProntuario;
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

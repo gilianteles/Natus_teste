@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS leitos (
   id_leito           text PRIMARY KEY,
   setor_nome         text NOT NULL REFERENCES setores(nome_setor) ON UPDATE CASCADE ON DELETE RESTRICT,
   numero_leito       text NOT NULL,
-  status             text NOT NULL DEFAULT 'Livre' CHECK (status IN ('Livre','Ocupado','Reservado','Reserva','Bloqueado')),
+  -- FASE 5 (giro de leitos): "Higienizacao" = Higienização Pendente (leito vago aguardando limpeza).
+  status             text NOT NULL DEFAULT 'Livre' CHECK (status IN ('Livre','Ocupado','Reservado','Reserva','Bloqueado','Higienizacao')),
   id_paciente_atual  text,
   exame_externo      text NOT NULL DEFAULT 'Não',
   id_paciente_mae    text,   -- ALCON: vínculo da Mãe
@@ -53,7 +54,14 @@ CREATE TABLE IF NOT EXISTS internacoes (
   observacao_procedimento  text NOT NULL DEFAULT '',
   rn_sozinho               text NOT NULL DEFAULT '',
   -- FASE 2 (Kanban NIR): status operacional de regulação da paciente, mantido pelo quadro Kanban.
-  status_regulacao         text NOT NULL DEFAULT ''
+  status_regulacao         text NOT NULL DEFAULT '',
+  -- FASE 4 (Assistência Clínica): dados ao nascer do RN e vínculo do binômio Mãe-Bebê.
+  apgar_1min               integer,
+  apgar_5min               integer,
+  peso_gramas              integer,
+  reanimacao               text NOT NULL DEFAULT '',
+  pulseira                 text NOT NULL DEFAULT '',
+  id_binomio               text NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS ix_int_setor ON internacoes(setor_nome);
 CREATE INDEX IF NOT EXISTS ix_int_paciente ON internacoes(id_paciente);
@@ -197,6 +205,49 @@ CREATE INDEX IF NOT EXISTS ix_cards_internacao ON regulacao_cards(id_internacao)
 CREATE UNIQUE INDEX IF NOT EXISTS ux_cards_internacao ON regulacao_cards(id_internacao) WHERE id_internacao IS NOT NULL;
 
 -- =====================================================================================
+-- FASE 4 — Assistência Clínica: Prontuário Eletrônico Simplificado (PEP)
+-- Evolução clínica diária no modelo SOAP (Subjetivo, Objetivo, Avaliação, Plano) e
+-- prescrições. O histórico unificado é lido pelo binômio Mãe-Bebê em lib/clinica.js.
+-- =====================================================================================
+CREATE TABLE IF NOT EXISTS evolucoes_soap (
+  id_evolucao     text PRIMARY KEY,
+  id_internacao   text NOT NULL REFERENCES internacoes(id_internacao) ON DELETE CASCADE,
+  id_paciente     text NOT NULL,
+  setor_nome      text NOT NULL DEFAULT '',
+  data_hora       timestamp NOT NULL,
+  categoria       text NOT NULL DEFAULT 'Médico',   -- Médico, Enfermagem, Fisioterapia, etc.
+  profissional    text NOT NULL DEFAULT '',
+  subjetivo       text NOT NULL DEFAULT '',
+  objetivo        text NOT NULL DEFAULT '',
+  avaliacao       text NOT NULL DEFAULT '',
+  plano           text NOT NULL DEFAULT '',
+  registrado_por  text NOT NULL DEFAULT '',
+  criado_em       timestamp NOT NULL DEFAULT (now() AT TIME ZONE 'America/Manaus')
+);
+CREATE INDEX IF NOT EXISTS ix_soap_internacao ON evolucoes_soap(id_internacao, data_hora);
+CREATE INDEX IF NOT EXISTS ix_soap_paciente ON evolucoes_soap(id_paciente);
+
+CREATE TABLE IF NOT EXISTS prescricoes (
+  id_prescricao  text PRIMARY KEY,
+  id_internacao  text NOT NULL REFERENCES internacoes(id_internacao) ON DELETE CASCADE,
+  id_paciente    text NOT NULL,
+  setor_nome     text NOT NULL DEFAULT '',
+  data_hora      timestamp NOT NULL,
+  tipo           text NOT NULL DEFAULT 'Medicamento',  -- Medicamento, Cuidado, Dieta, Exame, Procedimento
+  descricao      text NOT NULL DEFAULT '',
+  dose           text NOT NULL DEFAULT '',
+  via            text NOT NULL DEFAULT '',
+  frequencia     text NOT NULL DEFAULT '',
+  status         text NOT NULL DEFAULT 'Ativa' CHECK (status IN ('Ativa','Suspensa','Concluída')),
+  profissional   text NOT NULL DEFAULT '',
+  observacao     text NOT NULL DEFAULT '',
+  criado_em      timestamp NOT NULL DEFAULT (now() AT TIME ZONE 'America/Manaus'),
+  atualizado_em  timestamp NOT NULL DEFAULT (now() AT TIME ZONE 'America/Manaus')
+);
+CREATE INDEX IF NOT EXISTS ix_presc_internacao ON prescricoes(id_internacao, data_hora);
+CREATE INDEX IF NOT EXISTS ix_presc_paciente ON prescricoes(id_paciente);
+
+-- =====================================================================================
 -- Migrações incrementais (idempotentes) — aplicam as novas colunas em bancos já existentes.
 -- `npm run db:migrate` executa este arquivo inteiro, portanto funciona para instalações
 -- novas e para bancos antigos sem perder dados.
@@ -206,6 +257,20 @@ ALTER TABLE pacientes  ADD COLUMN IF NOT EXISTS cartao_sus  text NOT NULL DEFAUL
 ALTER TABLE pacientes  ADD COLUMN IF NOT EXISTS telefone    text NOT NULL DEFAULT '';
 
 ALTER TABLE internacoes ADD COLUMN IF NOT EXISTS status_regulacao text NOT NULL DEFAULT '';
+
+-- FASE 4 — dados ao nascer do RN e vínculo do binômio Mãe-Bebê.
+ALTER TABLE internacoes ADD COLUMN IF NOT EXISTS apgar_1min  integer;
+ALTER TABLE internacoes ADD COLUMN IF NOT EXISTS apgar_5min  integer;
+ALTER TABLE internacoes ADD COLUMN IF NOT EXISTS peso_gramas integer;
+ALTER TABLE internacoes ADD COLUMN IF NOT EXISTS reanimacao  text NOT NULL DEFAULT '';
+ALTER TABLE internacoes ADD COLUMN IF NOT EXISTS pulseira    text NOT NULL DEFAULT '';
+ALTER TABLE internacoes ADD COLUMN IF NOT EXISTS id_binomio  text NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS ix_int_binomio ON internacoes(id_binomio) WHERE id_binomio <> '';
+
+-- FASE 5 — novo status operacional "Higienizacao" (Higienização Pendente) no giro de leitos.
+ALTER TABLE leitos DROP CONSTRAINT IF EXISTS leitos_status_check;
+ALTER TABLE leitos ADD CONSTRAINT leitos_status_check
+  CHECK (status IN ('Livre','Ocupado','Reservado','Reserva','Bloqueado','Higienizacao'));
 
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS nome_completo text NOT NULL DEFAULT '';
 ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS cpf           text NOT NULL DEFAULT '';

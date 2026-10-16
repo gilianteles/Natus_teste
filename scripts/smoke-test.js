@@ -14,7 +14,7 @@ let n = 0; const ok = m => console.log(`  ✔ ${++n}. ${m}`);
 
 (async () => {
   const p = getPool();
-  await p.query('TRUNCATE regulacao_cards, acr_atendimentos, movimentacoes, contato_pele_pele, indicadores_leito, internacoes, pacientes, leitos, setores, usuarios, sessoes, logs RESTART IDENTITY CASCADE');
+  await p.query('TRUNCATE evolucoes_soap, prescricoes, regulacao_cards, acr_atendimentos, movimentacoes, contato_pele_pele, indicadores_leito, internacoes, pacientes, leitos, setores, usuarios, sessoes, logs RESTART IDENTITY CASCADE');
   for (const s of ['UTIN 1', 'UCINCA', 'ALCON 1', 'UTI MATERNA', 'UEN']) await p.query(`INSERT INTO setores VALUES ($1,$1,'Neonatal',0)`, [s]);
   // FASE 3: um Administrador (único perfil que cadastra usuários), um NIR comum e um perfil de setor.
   await p.query(`INSERT INTO usuarios (nome,perfil,setor,senha_hash,nome_completo,cargo,status,administrador)
@@ -139,7 +139,14 @@ let n = 0; const ok = m => console.log(`  ✔ ${++n}. ${m}`);
   assert.ok(cardAcr); ok('card do ACR entra em "Aguardando Avaliação"');
   assert.ok(kb.colunas.find(c => c.id === 'internado').cards.length >= 1); ok('internações ativas viram cards em "Internado / Ativo"');
   assert.match(await falha('moverCardKanban', { idCard: cardAcr.idCard, coluna: 'internado' }), /leito/); ok('bloqueia "Internado / Ativo" sem internação ativa');
-  const leitoKb = (await call('getPainelOperacionalData', 'UTIN 1')).leitos.find(l => l.Status === 'Livre');
+  // FASE 5: uma saída deixa o leito em "Higienização Pendente"; a equipe de higienização o
+  // devolve como Disponível (concluirHigienizacao) antes de uma nova admissão.
+  let painelKb = await call('getPainelOperacionalData', 'UTIN 1');
+  assert.ok(painelKb.leitos.some(l => l.Status === 'Higienizacao')); ok('FASE 5: leito fica em Higienização Pendente após a alta');
+  for (const l of painelKb.leitos.filter(x => x.Status === 'Higienizacao')) await call('concluirHigienizacao', l.ID_Leito);
+  painelKb = await call('getPainelOperacionalData', 'UTIN 1');
+  const leitoKb = painelKb.leitos.find(l => l.Status === 'Livre');
+  assert.ok(leitoKb); ok('FASE 5: concluir higienização libera o leito como Disponível');
   // O CPF liga a internação ao cadastro criado pelo ACR (mesma paciente), promovendo o card.
   await call('registrarInternacao', { setor: 'UTIN 1', leitoId: leitoKb.ID_Leito, nome: 'Mãe ACR Teste', sexo: 'F', dataNascimento: '1994-05-10', procedencia: 'PPP', data: hoje(), hora: '13:30', cpf: '529.982.247-25' });
   kb = await call('obterKanban', {});
@@ -184,6 +191,63 @@ let n = 0; const ok = m => console.log(`  ✔ ${++n}. ${m}`);
   assert.match(await falha('obterUsuariosAdministrativos', 'x'), /restrito/); assert.match(await falha('gerarRelatorioGerencial', {}), /restrito/); ok('perfil SETOR sem acesso administrativo');
   const buscaNome = await call('buscarPacientesPorNome', 'x', 'Mãe ACR'); assert.equal(buscaNome.length, 1); ok('paciente do ACR disponível no histórico');
   assert.match(await falha('obterEstatisticasDashboardGeral', 'Todos', 1, 2026), /restrito/); ok('dashboard geral restrito ao perfil de setor');
+
+  console.log('FASE 4 — Prontuário Eletrônico (PEP): SOAP, prescrições e binômio Mãe-Bebê');
+  sess = ADMIN;
+  // Giro de leitos: concluir higienização devolve o leito à operação.
+  let pUtin = await call('getPainelOperacionalData', 'UTIN 1');
+  const hig = pUtin.leitos.find(l => l.Status === 'Higienizacao');
+  assert.ok(hig); ok('FASE 5: leito em Higienização Pendente disponível na UTIN 1');
+  await call('concluirHigienizacao', hig.ID_Leito); ok('FASE 5: concluir higienização devolve o leito');
+  await call('marcarHigienizacao', hig.ID_Leito);
+  assert.equal((await call('getPainelOperacionalData', 'UTIN 1')).leitos.find(l => l.ID_Leito === hig.ID_Leito).Status, 'Higienizacao'); ok('FASE 5: marcar higienização volta a bloquear o leito');
+  await call('concluirHigienizacao', hig.ID_Leito);
+  const leitoPep = (await call('getPainelOperacionalData', 'UTIN 1')).leitos.find(l => l.Status === 'Livre');
+  const pepAdm = await call('registrarInternacao', { setor: 'UTIN 1', leitoId: leitoPep.ID_Leito, nome: 'RN PEP', sexo: 'M', dataNascimento: hoje(), procedencia: 'CCO',
+    data: hoje(), hora: '06:00', tipoParto: 'Normal', ig: '32s', horaNascimento: '05:50', apgar1: 8, apgar5: 9, pesoGramas: 1520, reanimacao: 'Não', pulseira: 'RN-001' });
+  const bd = (await p.query('SELECT apgar_1min a1, apgar_5min a5, peso_gramas pg, reanimacao r, pulseira pl FROM internacoes WHERE id_internacao=$1', [pepAdm.idInternacao])).rows[0];
+  assert.equal(bd.a1, 8); assert.equal(bd.a5, 9); assert.equal(bd.pg, 1520); assert.equal(bd.r, 'Não'); assert.equal(bd.pl, 'RN-001');
+  ok('dados ao nascer gravados (APGAR 1º/5º, peso em gramas, reanimação, pulseira)');
+
+  let pront = await call('obterProntuario', pepAdm.idInternacao);
+  assert.equal(pront.internacao.nome, 'RN PEP'); assert.equal(pront.internacao.apgar1, 8); assert.equal(pront.internacao.pesoGramas, 1520);
+  assert.ok(pront.opcoes.categorias.length >= 5 && pront.opcoes.tiposPrescricao.length >= 5); ok('prontuário carregado com dados ao nascer e opções do PEP');
+
+  const ev1 = await call('salvarEvolucaoSOAP', { idInternacao: pepAdm.idInternacao, categoria: 'Médico', profissional: 'Dra. Teste', data: hoje(), hora: '08:00',
+    subjetivo: 'RN ativo, bom padrão respiratório', objetivo: 'FR 48, SpO2 96%', avaliacao: 'Evolução estável', plano: 'Manter suporte' });
+  assert.ok(ev1.idEvolucao); ok('evolução clínica SOAP registrada');
+  assert.match(await falha('salvarEvolucaoSOAP', { idInternacao: pepAdm.idInternacao, categoria: 'Médico' }), /ao menos um campo/); ok('evolução sem nenhum campo recusada');
+  assert.match(await falha('salvarEvolucaoSOAP', { idInternacao: pepAdm.idInternacao, categoria: 'Invenção', subjetivo: 'x' }), /Categoria/); ok('categoria profissional inválida recusada');
+  assert.equal((await call('listarEvolucoesSOAP', { idInternacao: pepAdm.idInternacao })).length, 1); ok('evolução SOAP listada no prontuário');
+
+  const pr1 = await call('salvarPrescricao', { idInternacao: pepAdm.idInternacao, tipo: 'Medicamento', descricao: 'Cafeína citrato', dose: '20 mg', via: 'EV', frequencia: '24/24h', status: 'Ativa', data: hoje(), hora: '08:10' });
+  assert.ok(pr1.idPrescricao); ok('prescrição registrada');
+  assert.match(await falha('salvarPrescricao', { idInternacao: pepAdm.idInternacao, tipo: 'Medicamento', descricao: '' }), /prescrição/i); ok('prescrição sem descrição recusada');
+  await call('atualizarStatusPrescricao', { idPrescricao: pr1.idPrescricao, status: 'Suspensa' });
+  assert.equal((await call('listarPrescricoes', { idInternacao: pepAdm.idInternacao }))[0].status, 'Suspensa'); ok('situação da prescrição atualizada (Ativa → Suspensa)');
+  await call('excluirEvolucaoSOAP', ev1.idEvolucao);
+  assert.equal((await call('listarEvolucoesSOAP', { idInternacao: pepAdm.idInternacao })).length, 0); ok('evolução SOAP excluída');
+
+  // FIX 1 (servidor): a Mãe (UTI Materna) não guarda faixa de peso.
+  const leitoMae = (await call('getPainelOperacionalData', 'UTI MATERNA')).leitos.find(l => l.Status === 'Livre');
+  const admMae = await call('registrarInternacao', { setor: 'UTI MATERNA', leitoId: leitoMae.ID_Leito, nome: 'Mãe Binômio', sexo: 'F', dataNascimento: '1993-02-02', procedencia: 'CCO', data: hoje(), hora: '05:40', pesoNascer: '<1500' });
+  const pesoMae = (await p.query('SELECT peso_nascer p FROM internacoes WHERE id_internacao=$1', [admMae.idInternacao])).rows[0].p;
+  assert.equal(pesoMae, ''); ok('FIX 1: faixa de peso ignorada na internação da Mãe (UTI Materna)');
+  await call('vincularBinomio', { idInternacaoMae: admMae.idInternacao, idInternacaoRn: pepAdm.idInternacao });
+  pront = await call('obterProntuario', admMae.idInternacao);
+  assert.equal(pront.binomio.length, 2); assert.ok(pront.binomio.some(b => b.idInternacao === pepAdm.idInternacao)); ok('binômio Mãe-Bebê vincula os dois prontuários');
+  const binsAlcon = (await p.query(`SELECT count(DISTINCT id_binomio)::int n FROM internacoes WHERE setor_nome='ALCON 1' AND id_binomio<>''`)).rows[0].n;
+  assert.equal(binsAlcon, 1); ok('ALCON gera um único binômio automático para Mãe e RN');
+
+  console.log('FASE 5 — Indicadores de qualidade e BI gerencial');
+  const bi = await call('obterIndicadoresGerenciais', { dataInicial: `${ano}-${String(mes).padStart(2, '0')}-01`, dataFinal: hoje(), setor: 'TODOS' });
+  assert.ok(bi.ocupacao.porSetor.length >= 5); ok('BI: taxa de ocupação por setor (tempo real)');
+  assert.ok(typeof bi.permanencia.tmp === 'number'); ok('BI: tempo médio de permanência (TMP)');
+  assert.ok(bi.partos.total >= 1 && bi.partos.normal >= 1 && bi.partos.cesarea >= 1); ok('BI: percentual de partos normais x cesáreas');
+  assert.ok(Array.isArray(bi.alertas) && bi.higienizacao.pendentes >= 1); ok('BI: alertas de indicadores críticos e higienização pendente');
+  sess = ENF;
+  assert.match(await falha('obterIndicadoresGerenciais', { setor: 'TODOS' }), /restrito/); ok('BI gerencial restrito aos perfis de gestão');
+
   await p.query(`UPDATE sessoes SET expira_em = now() - interval '1 minute'`);
   assert.equal(await validarSessao(loginLegado.token), null); ok('sessão expirada é rejeitada');
   const logs = (await p.query('SELECT count(*)::int n FROM logs')).rows[0].n; assert.ok(logs > 20); ok(`auditoria registrada (${logs} eventos)`);

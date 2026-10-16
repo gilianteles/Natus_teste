@@ -10,11 +10,12 @@ const cache = {};
 const carregar = n => (cache[n] = cache[n] || fs.readFileSync(path.join(VIEWS, n + '.html'), 'utf8'));
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const TITULOS = { login: 'Natus - Login', nir: 'Natus - Painel NIR/SAME', dashboardgeral: 'Dashboard Geral - Natus', historico: 'Natus - Histórico de Pacientes',
-  acr: 'Natus - ACR (Acolhimento e Classificação de Risco)', kanban: 'Natus - Kanban de Regulação (NIR)' };
+  acr: 'Natus - ACR (Acolhimento e Classificação de Risco)', kanban: 'Natus - Kanban de Regulação (NIR)',
+  prontuario: 'Natus - Prontuário Eletrônico (PEP)', bi: 'Natus - Indicadores e BI Gerencial' };
 
-const ATIVO = { painel: 'painel', dashboard: 'dashboard', nir: 'nir', historico: 'historico', dashboardgeral: 'dashboardgeral', acr: 'acr', kanban: 'kanban' };
+const ATIVO = { painel: 'painel', dashboard: 'dashboard', nir: 'nir', historico: 'historico', dashboardgeral: 'dashboardgeral', acr: 'acr', kanban: 'kanban', prontuario: 'prontuario', bi: 'bi' };
 // Scripts adicionais por tela (servidos de /public com cache-busting por data de modificação).
-const EXTRA = { painel: 'natus-painel.js', acr: 'natus-acr.js', kanban: 'natus-kanban.js' };
+const EXTRA = { painel: 'natus-painel.js', acr: 'natus-acr.js', kanban: 'natus-kanban.js', prontuario: 'natus-prontuario.js', bi: 'natus-bi.js' };
 
 /* Placeholders dos views: <!--@head-->, <!--@rail-->, <!--@useractions-->; e as variáveis <?!= nome ?>. */
 function render(nome, vars, titulo, ctx) {
@@ -59,6 +60,11 @@ module.exports = async function handler(req, res) {
     if (view === 'nir' || view === 'usuarios') return adm ? res.send(render('nir', base, TITULOS.nir, ctx)) : painel(sessao.setor);
     if (view === 'historico') return res.send(render('historico', base, TITULOS.historico, ctx));
     if (view === 'dashboardgeral') return adm ? res.send(render('dashboardgeral', base, TITULOS.dashboardgeral, ctx)) : painel(sessao.setor);
+    // FASE 4 — Prontuário Eletrônico (PEP): aberto a qualquer colaborador autenticado; o acesso ao
+    // prontuário de cada internação é recortado por setor no servidor (lib/clinica.js).
+    if (view === 'prontuario') return res.send(render('prontuario', { ...base, idInternacao: String(q.id || '') }, TITULOS.prontuario, ctx));
+    // FASE 5 — BI gerencial: restrito aos perfis de gestão.
+    if (view === 'bi') return adm ? res.send(render('bi', base, TITULOS.bi, ctx)) : painel(sessao.setor);
     if (adm && !q.setor) return res.send(render('nir', base, TITULOS.nir, ctx));
     return painel(adm ? (String(q.setor || 'UTIN 1').trim() || 'UTIN 1') : sessao.setor);
   } catch (e) {

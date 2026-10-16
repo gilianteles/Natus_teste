@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Natus - Indicadores e BI Gerencial</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <script src="/natus-rpc.js"></script>
+  <!--@head-->
+</head>
+<body class="nt-body">
+<div class="app-shell">
+  <!--@rail-->
+
+  <section class="content">
+    <header class="nt-topbar">
+      <div>
+        <div class="nt-crumb"><span>Natus</span><i class="bi bi-chevron-right"></i><span>Gestão</span><i class="bi bi-chevron-right"></i><span>BI</span></div>
+        <h1 class="nt-title">Indicadores de Qualidade e BI Gerencial</h1>
+      </div>
+      <div class="nt-actions">
+        <span class="nt-chip"><span class="nt-live"></span><span id="biSync">—</span></span>
+        <button class="btn btn-light btn-sm" onclick="biExportarCSV()" title="Exportar indicadores (CSV)"><i class="bi bi-filetype-csv me-1"></i>Exportar</button>
+        <button class="btn btn-light btn-sm" onclick="carregarBI()" title="Atualizar"><i class="bi bi-arrow-clockwise me-1"></i>Atualizar</button>
+        <!--@useractions-->
+      </div>
+    </header>
+
+    <main class="main nt-page">
+      <div class="hero"><div class="position-relative" style="z-index:1">
+        <h2>Panorama gerencial da maternidade</h2>
+        <p>Taxa de ocupação, tempo médio de permanência, perfil de partos, giro de leitos e alertas de indicadores críticos.</p>
+      </div></div>
+
+      <!-- Filtros -->
+      <div class="bi-filtros">
+        <div><label class="form-label small mb-1">Data inicial</label><input type="date" class="form-control form-control-sm" id="biIni" onchange="carregarBI()"></div>
+        <div><label class="form-label small mb-1">Data final</label><input type="date" class="form-control form-control-sm" id="biFim" onchange="carregarBI()"></div>
+        <div><label class="form-label small mb-1">Setor</label><select class="form-select form-select-sm" id="biSetor" onchange="carregarBI()"><option value="TODOS">Todos os setores</option></select></div>
+        <div class="bi-filtros-acoes"><button class="btn btn-natus btn-sm fw-semibold" onclick="carregarBI()"><i class="bi bi-funnel me-1"></i>Aplicar</button></div>
+      </div>
+
+      <!-- Alertas -->
+      <div id="biAlertas" class="mb-3"></div>
+
+      <!-- KPIs -->
+      <div class="row g-3 mb-2" id="biKpis">
+        <div class="col-6 col-lg-3"><div class="nt-kpi"><div class="nt-kpi-top"><span class="nt-kpi-label">Ocupação atual</span><span class="nt-kpi-icon"><i class="bi bi-hospital"></i></span></div><div class="nt-kpi-value" id="biOcupAtual">—</div><div class="nt-kpi-sub"><span id="biOcupAtualSub">—</span></div></div></div>
+        <div class="col-6 col-lg-3"><div class="nt-kpi t-info"><div class="nt-kpi-top"><span class="nt-kpi-label">Ocupação média do período</span><span class="nt-kpi-icon"><i class="bi bi-percent"></i></span></div><div class="nt-kpi-value" id="biOcupMedia">—</div><div class="nt-kpi-sub"><span id="biOcupMediaSub">—</span></div></div></div>
+        <div class="col-6 col-lg-3"><div class="nt-kpi t-warn"><div class="nt-kpi-top"><span class="nt-kpi-label">Permanência média (TMP)</span><span class="nt-kpi-icon"><i class="bi bi-hourglass-split"></i></span></div><div class="nt-kpi-value" id="biTmp">—</div><div class="nt-kpi-sub"><span id="biTmpSub">—</span></div></div></div>
+        <div class="col-6 col-lg-3"><div class="nt-kpi t-ok"><div class="nt-kpi-top"><span class="nt-kpi-label">Partos normais</span><span class="nt-kpi-icon"><i class="bi bi-gender-female"></i></span></div><div class="nt-kpi-value" id="biPartoNormal">—</div><div class="nt-kpi-sub"><span id="biPartoSub">—</span></div></div></div>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-lg-7">
+          <div class="bi-card">
+            <div class="bi-card-titulo"><i class="bi bi-bar-chart me-1"></i>Ocupação por setor (tempo real)</div>
+            <div style="height:300px"><canvas id="biChartSetores"></canvas></div>
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <div class="bi-card">
+            <div class="bi-card-titulo"><i class="bi bi-pie-chart me-1"></i>Perfil de partos no período</div>
+            <div style="height:300px"><canvas id="biChartPartos"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mt-1">
+        <div class="col-lg-6">
+          <div class="bi-card">
+            <div class="bi-card-titulo"><i class="bi bi-speedometer2 me-1"></i>Giro de leitos e higienização</div>
+            <div class="bi-grid mt-2" id="biGiro"></div>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="bi-card">
+            <div class="bi-card-titulo"><i class="bi bi-list-check me-1"></i>Movimentação do período</div>
+            <div class="bi-grid mt-2" id="biMov"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="bi-card mt-3">
+        <div class="bi-card-titulo"><i class="bi bi-table me-1"></i>Detalhamento por setor</div>
+        <div class="table-responsive"><table class="table align-middle mb-0">
+          <thead><tr><th>Setor</th><th class="text-end">Leitos</th><th class="text-end">Ocupados</th><th class="text-end">Higienização</th><th class="text-end">Taxa</th></tr></thead>
+          <tbody id="biTabelaSetores"></tbody>
+        </table></div>
+      </div>
+
+      <div class="bi-higienizacao mt-3" id="biHigienizacao"></div>
+    </main>
+  </section>
+</div>
+
+<div class="toast-container position-fixed bottom-0 end-0 p-3" id="biToasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  const token = "<?!= token ?>", appUrl = "<?!= appUrl ?>";
+  window.BI = { token: token, appUrl: appUrl };
+</script>
+</body>
+</html>

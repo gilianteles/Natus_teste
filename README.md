@@ -53,6 +53,37 @@ negócio (UEN/vaga zero, binômio ALCON, censo às 24h, mortalidade, Método Can
   mais antigo — **evita que o sistema fique sem ninguém capaz de cadastrar usuários**. Os `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`
   ao fim de `db/schema.sql` aplicam tudo sem perder dados, em bancos novos e existentes.
 
+### FASE 4 — Assistência Clínica / PEP (binômio Mãe-Bebê, SOAP e prescrições) · `/?view=prontuario&id=<internação>`
+- **Vínculo do binômio Mãe-Bebê** (`internacoes.id_binomio`): no ALCON o Mãe e o RN compartilham o mesmo identificador
+  automaticamente; em setores distintos (Mãe na UTI Materna/ALCON e RN na UTIN/UCI/UCINCO), o vínculo é feito por
+  `vincularBinomio`. O prontuário mostra todos os integrantes do binômio com atalho para cada um.
+- **Dados ao nascer** gravados na internação do RN: `apgar_1min`, `apgar_5min`, `peso_gramas`, `reanimacao` e `pulseira`
+  (identificação por pulseira). `editarInternacao` só altera esses campos quando explicitamente enviados.
+- **Prontuário Eletrônico Simplificado (PEP)** — `views/prontuario.html` + `public/natus-prontuario.js`: evolução clínica diária
+  em **SOAP** (Subjetivo/Objetivo/Avaliação/Plano) por categoria profissional (Médico, Enfermagem, Fisioterapia…), registro de
+  **prescrições** (medicamento/cuidado/dieta/exame/procedimento, com dose/via/frequência e situação Ativa/Suspensa/Concluída) e
+  **histórico unificado** (movimentações + evoluções + prescrições), com **exportação CSV** para auditoria.
+- Tabelas novas `evolucoes_soap` e `prescricoes` (ver `db/schema.sql`) e módulo `lib/clinica.js`. Acesso recortado por setor
+  (`exigirSetor`); os perfis de gestão (NIR/SAME/GESTÃO/Administrador) enxergam todos os setores.
+- Botão **"Prontuário (PEP)"** no detalhe do leito (censo) e no card do Kanban abrem o prontuário em nova aba.
+
+### FASE 5 — Indicadores de qualidade, giro de leitos e BI gerencial · `/?view=bi`
+- **Giro de leitos / higienização**: um leito vago passa a **"Higienização Pendente"** (`leitos.status = 'Higienizacao'`) após
+  altas, óbitos, evasões e transferências — a equipe de higienização o devolve como **Disponível** por `concluirHigienizacao`
+  (e pode reencaminhar com `marcarHigienizacao`). O leito em higienização **não aceita nova internação** até ser liberado.
+  No censo, esses leitos aparecem com destaque e o botão **"Concluir Higienização"**; o `CHECK` de `leitos.status` foi ampliado.
+- **Alertas operacionais**: a conclusão de uma saída sinaliza o leito para limpeza (badge "Higienização Pendente") e o BI lista
+  os leitos aguardando higienização.
+- **Painel gerencial** (`views/bi.html` + `public/natus-bi.js`, módulo `lib/bi.js`, RPC `obterIndicadoresGerenciais`): **taxa de
+  ocupação** (tempo real por setor e média do período), **tempo médio de permanência (TMP)**, **percentual de partos normais x
+  cesáreas**, **giro de leitos**, movimentação (admissões/altas/óbitos/evasões/transferências) e **alertas de indicadores
+  críticos** (ocupação ≥ 90%/80%, setores lotados, permanência prolongada, pacientes sem leito, higienização pendente).
+  Exportável em **CSV** (relatório de auditoria). Acesso restrito aos perfis de gestão.
+- **Correções desta rodada**: (1) nas telas de admissão, o campo de **faixa de peso** é ocultado **e desabilitado** quando a
+  internação é da Mãe (MAE no ALCON) ou da UTI Materna, e o servidor ignora o peso enviado nesses casos; (2) a **busca por nome
+  no Kanban** foi corrigida (o filtro por documento casava com CPF vazio) e agora é **insensível a acentos/caixa**; (3) o
+  **Regulador pode internar a paciente direto pelo card** (`internarCardKanban`), escolhendo setor e leito sem redigitar dados.
+
 ## Implantação (≈10 min)
 1. **Banco**: crie um PostgreSQL gratuito (Neon, Supabase ou Vercel Postgres, região São Paulo/`gru1` se disponível) e copie a `DATABASE_URL` (versão *pooled*).
 2. **GitHub**: `git init && git add . && git commit -m "Natus" && git remote add origin <repo> && git push -u origin main`.
