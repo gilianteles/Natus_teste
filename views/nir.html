@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Natus - NIR</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  
+  <script src="/natus-rpc.js"></script>
+  <!--@head-->
+</head>
+<body class="nt-body">
+<div class="app-shell">
+  <!--@rail-->
+
+  <section class="content">
+    <header class="nt-topbar">
+      <div>
+        <div class="nt-crumb"><span>Natus</span><i class="bi bi-chevron-right"></i><span>Regulação</span></div>
+        <h1 class="nt-title">NIR · Núcleo Interno de Regulação</h1>
+      </div>
+      <div class="nt-actions">
+        <span class="nt-chip"><span class="nt-live"></span>Atualização operacional</span>
+        <button class="btn btn-light btn-sm" onclick="carregarNIR()" title="Atualizar"><i class="bi bi-arrow-clockwise me-1"></i>Atualizar</button>
+        <button class="btn btn-natus btn-sm fw-semibold" onclick="abrirKanban()" title="Kanban de regulação"><i class="bi bi-kanban me-1"></i>Kanban</button>
+        <!--@useractions-->
+      </div>
+    </header>
+
+    <main class="main nt-page">
+      <div class="hero">
+        <div class="position-relative" style="z-index:1">
+          <h2>Panorama dos Setores</h2>
+          <p>Acompanhe em tempo real a ocupação, disponibilidade e situação dos leitos da maternidade.</p>
+        </div>
+      </div>
+
+      <div class="section-head">
+        <div><h3 class="section-title">Setores assistenciais</h3><div class="small text-muted">Clique em um setor para acessar seu painel operacional.</div></div>
+        <span class="badge rounded-pill text-bg-light border" id="contadorSetores">— setores</span>
+      </div>
+
+      <div id="gridSetores" class="row g-3">
+        <div class="col-12"><div class="empty"><div class="spinner-border spinner-border-sm text-info"></div><div class="mt-2">Carregando ocupação dos setores...</div></div></div>
+      </div>
+    </main>
+  </section>
+</div>
+
+<!-- Novo Setor -->
+<div class="modal fade" id="modalNovoSetor" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header natus"><h5 class="modal-title fw-bold"><i class="bi bi-building-add me-2"></i>Cadastrar Novo Setor</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <form id="formNovoSetor"><div class="modal-body">
+        <div class="mb-3"><label class="form-label fw-semibold">Nome do Setor</label><input type="text" class="form-control" id="setorNome" required placeholder="Ex.: ALCON 1, UCINCA, UTIN 3"></div>
+        <div class="mb-3"><label class="form-label fw-semibold">Tipo do Setor</label>
+          <select class="form-select" id="setorTipo"><option value="UTI">UTI Neonato / Pediátrica</option><option value="UCINCO">UCINCO</option><option value="UCINCA">UCINCA (Canguru)</option><option value="Alojamento Conjunto">Alojamento Conjunto (ALCON)</option><option value="Obstetrícia">Centro Obstétrico / PPP</option></select>
+        </div>
+        <div><label class="form-label fw-semibold">Quantidade Inicial de Leitos Ativos</label><input type="number" class="form-control" id="setorLeitos" min="1" max="100" value="10" required></div>
+      </div><div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-natus fw-semibold" type="submit">Criar Setor</button></div></form>
+    </div>
+  </div>
+</div>
+
+<!-- Usuários -->
+<div class="modal fade" id="modalUsuarios" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header natus"><h5 class="modal-title fw-bold"><i class="bi bi-people-fill me-2"></i>Colaboradores e Acessos</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="alert alert-warning small d-flex align-items-center gap-2">
+          <i class="bi bi-shield-lock-fill"></i>
+          <span>Cadastro de usuários restrito ao perfil <b>Administrador</b>. As tentativas de outros perfis são bloqueadas no servidor.</span>
+        </div>
+        <form id="formUsuario" class="row g-2 mb-4">
+          <input type="hidden" id="usuarioEditando">
+          <div class="col-12"><h6 class="fw-bold mb-1 mt-1">Dados do colaborador</h6><hr class="mt-0 mb-2"></div>
+          <div class="col-md-6"><label class="form-label">Nome Completo <span class="text-danger">*</span></label><input class="form-control" id="usuarioNomeCompleto" placeholder="Ex.: Ana Paula Ribeiro" required></div>
+          <div class="col-md-3"><label class="form-label">CPF <span class="text-danger">*</span></label><input class="form-control" id="usuarioCpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00" required></div>
+          <div class="col-md-3"><label class="form-label">Telefone / WhatsApp <span class="text-danger">*</span></label><input class="form-control" id="usuarioTelefone" inputmode="tel" maxlength="20" placeholder="(92) 9...." required></div>
+          <div class="col-md-4"><label class="form-label">E-mail profissional <span class="text-danger">*</span></label><input type="email" class="form-control" id="usuarioEmail" placeholder="nome@maternidade.org" required></div>
+          <div class="col-md-4"><label class="form-label">Cargo / Função <span class="text-danger">*</span></label><input class="form-control" id="usuarioCargo" list="listaCargos" placeholder="Ex.: Enfermeiro(a) Obstetra" required><datalist id="listaCargos"></datalist></div>
+          <div class="col-md-4"><label class="form-label">Login de acesso <span class="text-danger">*</span></label><input class="form-control" id="usuarioNome" placeholder="Ex.: ana.ribeiro" required><div class="form-text">Também aceita o e-mail como login.</div></div>
+          <div class="col-12 mt-2"><h6 class="fw-bold mb-1">Acesso e credenciais</h6><hr class="mt-0 mb-2"></div>
+          <div class="col-md-3"><label class="form-label">Perfil de acesso <span class="text-danger">*</span></label><select class="form-select" id="usuarioPerfil" required></select></div>
+          <div class="col-md-3"><label class="form-label">Setor de atuação</label><select class="form-select" id="usuarioSetor"></select></div>
+          <div class="col-md-3"><label class="form-label">Status <span class="text-danger">*</span></label><select class="form-select" id="usuarioStatus"><option value="Ativo">Ativo</option><option value="Inativo">Inativo</option></select></div>
+          <div class="col-md-3"><label class="form-label">Senha</label><input type="password" class="form-control" id="usuarioSenha" autocomplete="new-password" placeholder="Mínimo 6 caracteres"><div class="form-text" id="usuarioSenhaHint">Obrigatória para novos cadastros.</div></div>
+          <div class="col-12 d-flex gap-2 mt-1">
+            <button class="btn btn-natus fw-semibold" type="submit"><i class="bi bi-check-lg me-1"></i><span id="usuarioBtnTexto">Cadastrar colaborador</span></button>
+            <button class="btn btn-light fw-semibold d-none" type="button" id="usuarioBtnCancelar" onclick="cancelarEdicaoUsuario()">Cancelar edição</button>
+          </div>
+        </form>
+        <div class="table-responsive"><table class="table table-sm table-hover align-middle"><thead class="table-light"><tr><th>Colaborador</th><th>Cargo</th><th>Contato</th><th>Perfil</th><th>Setor</th><th>Status</th><th class="text-end">Ação</th></tr></thead><tbody id="tabelaUsuarios"></tbody></table></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+const token="<?!= token ?>", appUrl="<?!= appUrl ?>";
+document.addEventListener('DOMContentLoaded',carregarNIR);
+
+function rotuloSetor(nome){ return String(nome||'').trim().toUpperCase()==='UEN' ? 'Leito Extra CCO Neonatal' : nome; }
+function abrirNovoSetor(){ bootstrap.Modal.getOrCreateInstance(document.getElementById('modalNovoSetor')).show(); }
+function abrirUsuarios(){ cancelarEdicaoUsuario(); carregarUsuarios(); bootstrap.Modal.getOrCreateInstance(document.getElementById('modalUsuarios')).show(); }
+
+function carregarNIR(){
+  google.script.run.withSuccessHandler(renderizarSetores).withFailureHandler(err=>{
+    document.getElementById('gridSetores').innerHTML='<div class="col-12"><div class="alert alert-danger">Erro ao carregar os setores: '+(err&&err.message?err.message:err)+'</div></div>';
+  }).obterDadosNIR();
+}
+function renderizarSetores(setores){
+  const grid=document.getElementById('gridSetores'); grid.innerHTML='';
+  document.getElementById('contadorSetores').textContent=`${setores.length} setor${setores.length===1?'':'es'}`;
+  if(!setores.length){grid.innerHTML='<div class="col-12"><div class="empty"><i class="bi bi-hospital fs-1"></i><div class="mt-2">Nenhum setor cadastrado.</div></div></div>';return;}
+  setores.forEach(s=>{
+    const taxa=Number(s.taxa)||0, nomeInterno=s.setor, nomeExibicao=rotuloSetor(nomeInterno);
+    const ocupado=taxa>=100, atencao=taxa>=90&&!ocupado;
+    const statusClass=ocupado?'lotado':atencao?'atencao':'ok';
+    const fill=ocupado?'#dc3545':atencao?'#f59f45':'#10aeb8';
+    const dot=ocupado?'#dc3545':atencao?'#f59f45':'#19a974';
+    grid.innerHTML+=`
+      <div class="col-xl-3 col-lg-4 col-md-6">
+        <div class="setor-card" onclick="abrirSetor('${String(nomeInterno).replace(/'/g,"\\'")}')">
+          <div class="setor-top"></div><div class="setor-body">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <div class="d-flex align-items-center gap-2"><div class="setor-icon"><i class="bi bi-hospital"></i></div>
+                <div><div class="fw-bold">${nomeExibicao}</div><div class="small text-muted">${s.tipo||'Setor assistencial'}</div></div>
+              </div>
+              <span class="small fw-bold"><span class="status-dot" style="background:${dot}"></span>${ocupado?'Lotado':atencao?'Atenção':'Disponível'}</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-end mb-2"><div class="occupancy">${s.ocupados}<small> / ${s.total}</small></div><div class="rate">${taxa}%</div></div>
+            <div class="barra-ocup mb-3"><div class="barra-ocup-fill" style="width:${Math.min(taxa,100)}%;background:${fill}"></div></div>
+            <div class="d-flex justify-content-between small text-muted"><span><i class="bi bi-check-circle me-1"></i>${s.livres} livre(s)</span><span>Ver setor <i class="bi bi-arrow-right"></i></span></div>
+          </div>
+        </div>
+      </div>`;
+  });
+}
+function abrirSetor(nomeSetor){window.top.location.href=`${appUrl}?view=painel&token=${token}&setor=${encodeURIComponent(nomeSetor)}`;}
+function abrirHistorico(){window.top.location.href=`${appUrl}?view=historico&token=${token}`;}
+function abrirDashboardGeral(){window.top.location.href=`${appUrl}?view=dashboardgeral&token=${token}`;}
+
+function carregarUsuarios(){
+  google.script.run.withSuccessHandler(renderizarUsuarios).withFailureHandler(err=>alert(err&&err.message?err.message:err)).obterUsuariosAdministrativos(token);
+  google.script.run.withSuccessHandler(lista=>{ SETORES=(lista||[]).slice(); montarSelectPerfil(); }).withFailureHandler(err=>alert(err&&err.message?err.message:err)).obterSetoresParaUsuario(token);
+  google.script.run.withSuccessHandler(opcoes=>{
+    const cargo=document.getElementById('listaCargos');
+    if(cargo&&opcoes&&opcoes.cargos) cargo.innerHTML=opcoes.cargos.map(c=>`<option value="${c}"></option>`).join('');
+    if(opcoes&&opcoes.perfis){
+      const sel=document.getElementById('usuarioPerfil');
+      sel.innerHTML=opcoes.perfis.map(p=>`<option value="${p}">${p}</option>`).join('');
+      sel.value='Operador';
+      montarSelectSetor();
+    }
+  }).withFailureHandler(()=>{}).obterOpcoesUsuario(token);
+}
+
+let SETORES=[], USUARIOS=[];
+function soDigitos(v){return String(v==null?'':v).replace(/\D/g,'');}
+function mascaraCpf(v){const d=soDigitos(v).substring(0,11);if(d.length<=3)return d;if(d.length<=6)return d.replace(/(\d{3})(\d+)/,'$1.$2');if(d.length<=9)return d.replace(/(\d{3})(\d{3})(\d+)/,'$1.$2.$3');return d.replace(/(\d{3})(\d{3})(\d{3})(\d+)/,'$1.$2.$3-$4');}
+function montarSelectPerfil(){
+  const sel=document.getElementById('usuarioPerfil');
+  if(!sel.options.length){
+    sel.innerHTML=['Administrador','Operador','Visualizador','NIR','SAME','NIR/SAME','Gestão','Setor'].map(p=>`<option value="${p}">${p}</option>`).join('');
+    sel.value='Operador';
+  }
+  montarSelectSetor();
+}
+function montarSelectSetor(valor){
+  const perfil=document.getElementById('usuarioPerfil').value;
+  const ehAdmin=String(perfil).trim().toUpperCase()==='ADMINISTRADOR';
+  const opts=[];
+  if(ehAdmin) opts.push({v:'',t:'— Não se aplica (atuação transversal) —'});
+  ['ACR','NIR','SAME','NIR/SAME','Gestão'].forEach(s=>opts.push({v:s,t:rotuloSetor(s)}));
+  SETORES.forEach(s=>{ if(!opts.some(o=>String(o.v).toUpperCase()===String(s).toUpperCase())) opts.push({v:s,t:rotuloSetor(s)}); });
+  const sel=document.getElementById('usuarioSetor');
+  sel.innerHTML=opts.map(o=>`<option value="${o.v}">${o.t}</option>`).join('');
+  sel.value = valor!==undefined ? valor : (ehAdmin?'':(SETORES[0]||'ACR'));
+}
+function renderizarUsuarios(lista){
+  USUARIOS=lista||[];
+  const body=document.getElementById('tabelaUsuarios');
+  if(!USUARIOS.length){ body.innerHTML='<tr><td colspan="7" class="text-center text-muted py-4">Nenhum colaborador cadastrado.</td></tr>'; return; }
+  body.innerHTML=USUARIOS.map(u=>{
+    const ativo=String(u.status||'Ativo').toLowerCase()==='ativo';
+    const badgePerfil=u.administrador?'bg-danger':(u.perfil==='Setor'?'bg-secondary':'bg-primary');
+    return `<tr>
+      <td><div class="fw-semibold">${u.nomeCompleto||u.nome}</div><div class="small text-muted">login: ${u.nome}${u.cpf?' · CPF '+mascaraCpf(u.cpf):''}</div></td>
+      <td>${u.cargo||'—'}</td>
+      <td><div class="small">${u.email||'—'}</div><div class="small text-muted">${u.telefone||''}</div></td>
+      <td><span class="badge ${badgePerfil}">${u.perfil}</span>${u.administrador?' <i class="bi bi-shield-lock-fill text-danger" title="Administrador"></i>':''}</td>
+      <td>${rotuloSetor(u.setor)||'—'}</td>
+      <td><span class="badge ${ativo?'bg-success':'bg-secondary'}">${ativo?'Ativo':'Inativo'}</span></td>
+      <td class="text-end">
+        <button class="btn btn-sm btn-outline-primary me-1" title="Editar" onclick="editarUsuario('${String(u.nome).replace(/'/g,"\\'")}')"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger" title="Excluir" onclick="excluirUsuario('${String(u.nome).replace(/'/g,"\\'")}')"><i class="bi bi-trash"></i></button>
+      </td></tr>`;
+  }).join('');
+}
+function editarUsuario(nome){
+  const u=USUARIOS.filter(x=>String(x.nome).toLowerCase()===String(nome).toLowerCase())[0];
+  if(!u) return;
+  document.getElementById('usuarioEditando').value=u.nome;
+  document.getElementById('usuarioNomeCompleto').value=u.nomeCompleto||'';
+  document.getElementById('usuarioCpf').value=u.cpf?mascaraCpf(u.cpf):'';
+  document.getElementById('usuarioTelefone').value=u.telefone||'';
+  document.getElementById('usuarioEmail').value=u.email||'';
+  document.getElementById('usuarioCargo').value=u.cargo||'';
+  document.getElementById('usuarioNome').value=u.nome||'';
+  document.getElementById('usuarioPerfil').value=u.perfil||'Operador';
+  montarSelectSetor(u.setor||'');
+  document.getElementById('usuarioStatus').value=u.status||'Ativo';
+  document.getElementById('usuarioSenha').value='';
+  document.getElementById('usuarioSenhaHint').textContent='Deixe em branco para manter a senha atual.';
+  document.getElementById('usuarioBtnTexto').textContent='Salvar alterações';
+  document.getElementById('usuarioBtnCancelar').classList.remove('d-none');
+  document.getElementById('formUsuario').scrollIntoView({behavior:'smooth',block:'center'});
+}
+function cancelarEdicaoUsuario(){
+  document.getElementById('formUsuario').reset();
+  document.getElementById('usuarioEditando').value='';
+  document.getElementById('usuarioSenhaHint').textContent='Obrigatória para novos cadastros.';
+  document.getElementById('usuarioBtnTexto').textContent='Cadastrar colaborador';
+  document.getElementById('usuarioBtnCancelar').classList.add('d-none');
+}
+document.getElementById('usuarioCpf').addEventListener('input',function(){this.value=mascaraCpf(this.value);});
+document.getElementById('usuarioPerfil').addEventListener('change',function(){montarSelectSetor();});
+document.getElementById('formUsuario').addEventListener('submit',e=>{
+  e.preventDefault();
+  const btn=e.submitter, editando=document.getElementById('usuarioEditando').value;
+  const dados={
+    nome:document.getElementById('usuarioNome').value.trim(),
+    perfil:document.getElementById('usuarioPerfil').value,
+    setor:document.getElementById('usuarioSetor').value,
+    senha:document.getElementById('usuarioSenha').value,
+    nomeCompleto:document.getElementById('usuarioNomeCompleto').value.trim(),
+    cpf:soDigitos(document.getElementById('usuarioCpf').value),
+    email:document.getElementById('usuarioEmail').value.trim(),
+    telefone:document.getElementById('usuarioTelefone').value.trim(),
+    cargo:document.getElementById('usuarioCargo').value.trim(),
+    status:document.getElementById('usuarioStatus').value
+  };
+  if(dados.cpf.length!==11){ alert('Informe um CPF com 11 dígitos.'); return; }
+  if(!editando&&dados.senha.length<6){ alert('Informe uma senha com ao menos 6 caracteres.'); return; }
+  btn.disabled=true;
+  google.script.run.withSuccessHandler(()=>{
+    btn.disabled=false; cancelarEdicaoUsuario(); carregarUsuarios();
+  }).withFailureHandler(err=>{ btn.disabled=false; alert(err&&err.message?err.message:err); }).salvarUsuario(token,dados);
+});
+function excluirUsuario(nome){if(!confirm(`Excluir o colaborador "${nome}"? O acesso será revogado imediatamente.`))return;google.script.run.withSuccessHandler(carregarUsuarios).withFailureHandler(err=>alert(err&&err.message?err.message:err)).excluirUsuario(token,nome);}
+function abrirKanban(){window.top.location.href=`${appUrl}?view=kanban&token=${token}`;}
+function sair(){google.script.run.withSuccessHandler(()=>window.top.location.href=appUrl).encerrarSessao(token);}
+document.getElementById('formNovoSetor').addEventListener('submit',function(e){
+  e.preventDefault();const payload={nome:document.getElementById('setorNome').value,tipo:document.getElementById('setorTipo').value,leitosAtivos:document.getElementById('setorLeitos').value};
+  google.script.run.withSuccessHandler(()=>{bootstrap.Modal.getInstance(document.getElementById('modalNovoSetor')).hide();document.getElementById('formNovoSetor').reset();carregarNIR();}).withFailureHandler(err=>alert(err.message)).criarSetor(payload);
+});
+</script>
+</body>
+</html>

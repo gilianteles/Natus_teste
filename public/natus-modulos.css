@@ -1,0 +1,106 @@
+/* ==========================================================================
+   Natus — módulos das Fases 1/2/3
+   ACR (Acolhimento com Classificação de Risco) · Kanban do NIR
+   Carregado depois de natus-ui.css (usa os mesmos tokens de tema).
+   ========================================================================== */
+
+/* ---------- 1. ACR — busca por documento ---------- */
+.acr-busca {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 20px; box-shadow: var(--shadow); margin-bottom: 22px;
+}
+.acr-busca .form-label { font-weight: 700; font-size: .82rem; color: var(--text-2); }
+.acr-busca-titulo { display: flex; align-items: center; gap: 10px; font-weight: 800; margin-bottom: 4px; }
+.acr-busca-titulo i { color: var(--primary); }
+.acr-doc-status { min-height: 22px; font-size: .8rem; font-weight: 600; }
+.acr-doc-status.ok { color: var(--ok); }
+.acr-doc-status.novo { color: var(--warn); }
+.acr-doc-status.erro { color: var(--bad); }
+
+.acr-paciente-card {
+  border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--card-2);
+  padding: 14px 16px; display: flex; flex-wrap: wrap; gap: 18px; align-items: center;
+}
+.acr-paciente-card .nome { font-weight: 800; font-size: 1.02rem; }
+.acr-paciente-card .meta { font-size: .8rem; color: var(--muted); }
+.acr-paciente-card .tag {
+  font-size: .72rem; font-weight: 700; padding: 3px 10px; border-radius: 999px;
+  background: var(--primary-soft); color: var(--primary); border: 1px solid transparent;
+}
+
+/* ---------- 2. ACR — classificação de risco (Manchester) ---------- */
+.risco-grupo { display: flex; flex-wrap: wrap; gap: 10px; }
+.risco-opcao { position: absolute; opacity: 0; pointer-events: none; }
+.risco-label {
+  display: flex; align-items: center; gap: 9px; cursor: pointer; user-select: none;
+  border: 2px solid var(--border); border-radius: var(--radius-sm); padding: 9px 14px;
+  font-weight: 700; font-size: .85rem; background: var(--card); transition: .15s ease; color: var(--text-2);
+}
+.risco-label .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; box-shadow: 0 0 0 3px rgba(0, 0, 0, .06); }
+.risco-opcao:checked + .risco-label { border-color: currentColor; box-shadow: 0 0 0 3px var(--ring); }
+.risco-opcao:focus-visible + .risco-label { outline: 2px solid var(--primary); outline-offset: 2px; }
+.risco-vermelho { color: #b91c1c; } .risco-vermelho .dot { background: #dc2626; }
+.risco-laranja  { color: #c2410c; } .risco-laranja  .dot { background: #f97316; }
+.risco-amarelo  { color: #a16207; } .risco-amarelo  .dot { background: #facc15; }
+.risco-verde    { color: #15803d; } .risco-verde    .dot { background: #22c55e; }
+.risco-azul     { color: #1d4ed8; } .risco-azul     .dot { background: #3b82f6; }
+
+.risco-pill {
+  display: inline-flex; align-items: center; gap: 6px; font-size: .72rem; font-weight: 800;
+  padding: 3px 10px; border-radius: 999px; border: 1px solid; text-transform: uppercase; letter-spacing: .03em;
+}
+.risco-pill .dot { width: 8px; height: 8px; border-radius: 50%; }
+.risco-pill.risco-vermelho { background: rgba(220, 38, 38, .12); border-color: rgba(220, 38, 38, .35); color: #dc2626; }
+.risco-pill.risco-laranja  { background: rgba(249, 115, 22, .12); border-color: rgba(249, 115, 22, .35); color: #ea580c; }
+.risco-pill.risco-amarelo  { background: rgba(202, 138, 4, .14); border-color: rgba(202, 138, 4, .35); color: #a16207; }
+.risco-pill.risco-verde    { background: rgba(34, 197, 94, .13); border-color: rgba(34, 197, 94, .35); color: #15803d; }
+.risco-pill.risco-azul     { background: rgba(59, 130, 246, .13); border-color: rgba(59, 130, 246, .35); color: #1d4ed8; }
+
+/* ---------- 3. Kanban do NIR ---------- */
+.kb-filtros { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 18px; }
+.kb-board {
+  display: grid; grid-template-columns: repeat(4, minmax(255px, 1fr)); gap: 16px; align-items: start;
+}
+@media (max-width: 1200px) { .kb-board { grid-template-columns: repeat(2, minmax(255px, 1fr)); } }
+@media (max-width: 700px)  { .kb-board { grid-template-columns: 1fr; } }
+
+.kb-coluna {
+  background: var(--card-2); border: 1px solid var(--border); border-radius: var(--radius);
+  display: flex; flex-direction: column; min-height: 220px; max-height: calc(100vh - 230px);
+}
+.kb-coluna.drag-over { border-color: var(--primary); box-shadow: 0 0 0 3px var(--ring); }
+.kb-coluna-topo {
+  padding: 13px 15px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 9px;
+  position: sticky; top: 0; background: inherit; border-radius: var(--radius) var(--radius) 0 0; z-index: 2;
+}
+.kb-coluna-topo .icone { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: var(--tone-soft, var(--primary-soft)); color: var(--tone, var(--primary)); flex: none; }
+.kb-coluna-topo .titulo { font-weight: 800; font-size: .82rem; line-height: 1.15; }
+.kb-coluna-topo .contagem { margin-left: auto; font-size: .72rem; font-weight: 800; background: var(--card); border: 1px solid var(--border); border-radius: 999px; padding: 2px 9px; color: var(--muted); }
+.kb-col-aguardando   { --tone: var(--warn);  --tone-soft: var(--warn-soft); }
+.kb-col-internado    { --tone: var(--primary); --tone-soft: var(--primary-soft); }
+.kb-col-documentacao { --tone: var(--info);  --tone-soft: var(--info-soft); }
+.kb-col-alta         { --tone: var(--ok);    --tone-soft: var(--ok-soft); }
+.kb-lista { padding: 12px; display: flex; flex-direction: column; gap: 11px; overflow-y: auto; }
+
+.kb-card {
+  background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--prioridade-cor, var(--border-strong));
+  border-radius: var(--radius-md); padding: 12px 13px; box-shadow: var(--shadow-sm); cursor: grab;
+  transition: transform .12s ease, box-shadow .12s ease, opacity .12s ease;
+}
+.kb-card:hover { box-shadow: var(--shadow); transform: translateY(-1px); }
+.kb-card:active { cursor: grabbing; }
+.kb-card.dragging { opacity: .45; }
+.kb-card.prio-Urgente { --prioridade-cor: var(--bad); }
+.kb-card.prio-Prioridade { --prioridade-cor: var(--warn); }
+.kb-card.prio-Rotina { --prioridade-cor: var(--info); }
+.kb-card .kb-nome { font-weight: 800; font-size: .92rem; line-height: 1.2; }
+.kb-card .kb-meta { font-size: .75rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 5px; }
+.kb-card .kb-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.kb-card .kb-tag { font-size: .68rem; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: var(--slate-soft); color: var(--slate); }
+.kb-card .kb-obs { font-size: .75rem; color: var(--text-2); margin-top: 8px; border-top: 1px dashed var(--border); padding-top: 7px; }
+.kb-card .kb-acoes { display: flex; gap: 6px; margin-top: 9px; }
+.kb-vazio { padding: 18px; text-align: center; color: var(--muted); font-size: .82rem; border: 1px dashed var(--border-strong); border-radius: var(--radius-md); }
+.kb-legenda { display: flex; flex-wrap: wrap; gap: 14px; font-size: .78rem; color: var(--muted); font-weight: 600; }
+.kb-legenda span { display: inline-flex; align-items: center; gap: 6px; }
+.kb-legenda i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.kb-drop-hint { border: 2px dashed var(--primary); border-radius: var(--radius-md); margin: 12px; padding: 14px; text-align: center; color: var(--primary); font-weight: 700; font-size: .82rem; background: var(--primary-soft); }

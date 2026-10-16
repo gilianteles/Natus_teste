@@ -1,0 +1,2196 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" type="image/png" href="/assets/img-e02cd94544.png">
+  <title>Natus - Censo MAB</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+  <style>/* Menus dos cards nunca podem ultrapassar o Offcanvas de detalhes (Bootstrap: 1045). */
+    .card .acoes-dropdown { position: relative; z-index: 20; }
+    .card .acoes-dropdown .dropdown-menu { z-index: 30; min-width: 245px; }
+    .bed-card:has(.acoes-dropdown .dropdown-menu.show) { position: relative; z-index: 50; }
+    /* No card, o menu de Ações abre para cima para não ficar escondido pelo próprio card. */
+    .card .acoes-dropdown.dropup .dropdown-menu { top: auto !important; bottom: 100% !important; margin-top: 0; margin-bottom: .35rem; }
+    .acoes-dropdown .dropdown-item { padding: .55rem .85rem; }
+  </style>
+  <script src="/natus-rpc.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!--@head-->
+</head>
+<body class="nt-body">
+
+  <!--@rail-->
+  <header class="nt-topbar">
+    <div>
+      <div class="nt-crumb"><span>Natus</span><i class="bi bi-chevron-right"></i><span>Censo MAB</span></div>
+      <h1 class="nt-title">Censo de leitos</h1>
+    </div>
+    <div class="nt-actions">
+      <label class="nt-chip"><i class="bi bi-hospital"></i>
+        <select id="seletorSetor" onchange="trocarSetor(this.value)" aria-label="Setor"></select>
+      </label>
+      <button class="btn btn-light btn-sm d-none" id="btnVoltarNIR" onclick="voltarParaNIR()"><i class="bi bi-diagram-3-fill me-1"></i>Painel NIR</button>
+      <button class="btn btn-light btn-sm" id="btnGerenciarLeitos" data-bs-toggle="modal" data-bs-target="#modalGerenciarLeitos"><i class="bi bi-gear-fill me-1"></i>Gerenciar leitos</button>
+      <!--@useractions-->
+    </div>
+  </header>
+
+  <div class="container-fluid px-4">
+    <!-- Indicadores Operacionais do Dia -->
+    <section class="nt-kpis" aria-label="Indicadores do dia">
+      <article class="nt-kpi deep">
+        <div class="nt-kpi-top"><span class="nt-kpi-label" id="kpiTaxaLabel">Taxa de Ocupação</span><span class="nt-kpi-icon"><i class="bi bi-activity"></i></span></div>
+        <div class="nt-kpi-value" id="kpi-taxa">0%</div>
+        <div class="nt-bar" aria-hidden="true"><i></i></div>
+      </article>
+      <article class="nt-kpi t-bad">
+        <div class="nt-kpi-top"><span class="nt-kpi-label">Leitos Ocupados</span><span class="nt-kpi-icon"><i class="bi bi-person-fill"></i></span></div>
+        <div class="nt-kpi-value" id="kpi-ocupados">0/0</div>
+      </article>
+      <article class="nt-kpi">
+        <div class="nt-kpi-top"><span class="nt-kpi-label">Internações Hoje</span><span class="nt-kpi-icon"><i class="bi bi-box-arrow-in-down"></i></span></div>
+        <div class="nt-kpi-value" id="kpi-internacoes-total">0</div>
+        <div class="nt-kpi-sub"><span><i class="bi bi-arrow-down-circle me-1"></i>Internas <strong id="kpi-internacoes-internas">0</strong></span><span><i class="bi bi-hospital me-1"></i>Externas <strong id="kpi-internacoes-externas">0</strong></span></div>
+      </article>
+      <article class="nt-kpi t-ok">
+        <div class="nt-kpi-top"><span class="nt-kpi-label">Altas Hoje</span><span class="nt-kpi-icon"><i class="bi bi-house-heart-fill"></i></span></div>
+        <div class="nt-kpi-value" id="kpi-altas">0</div>
+      </article>
+      <article class="nt-kpi t-slate">
+        <div class="nt-kpi-top"><span class="nt-kpi-label">Óbitos Hoje</span><span class="nt-kpi-icon"><i class="bi bi-heartbreak-fill"></i></span></div>
+        <div class="nt-kpi-value" id="kpi-obitos">0</div>
+      </article>
+      <article class="nt-kpi t-bad d-none" id="cardEvasoesHoje">
+        <div class="nt-kpi-top"><span class="nt-kpi-label">Evasões Hoje</span><span class="nt-kpi-icon"><i class="bi bi-door-open-fill"></i></span></div>
+        <div class="nt-kpi-value" id="kpi-evasoes">0</div>
+      </article>
+      <article class="nt-kpi t-warn">
+        <div class="nt-kpi-top"><span class="nt-kpi-label">Transferências Hoje</span><span class="nt-kpi-icon"><i class="bi bi-arrow-left-right"></i></span></div>
+        <div class="nt-kpi-value" id="kpi-transf-total">0</div>
+        <div class="nt-kpi-sub"><span><i class="bi bi-arrow-left-right me-1"></i>Internas <strong id="kpi-transf-internas">0</strong></span><span><i class="bi bi-box-arrow-up-right me-1"></i>Externas <strong id="kpi-transf-externas">0</strong></span></div>
+      </article>
+    </section>
+
+    <!-- Tendência e distribuição -->
+    <section class="nt-charts" aria-label="Gráficos do setor">
+      <div class="nt-panel">
+        <div class="nt-panel-head">
+          <div><h6>Tendência de ocupação</h6><small id="ntTendenciaMes">mês atual</small></div>
+          <span class="nt-pill" id="ntPillMedia">—</span>
+        </div>
+        <div class="nt-chart-wrap"><canvas id="ntChartTendencia" role="img" aria-label="Gráfico de tendência de ocupação no mês"></canvas>
+          <div id="ntTendenciaVazio" class="d-none text-muted small position-absolute top-50 start-50 translate-middle">Sem dados no período.</div></div>
+      </div>
+      <div class="nt-panel">
+        <div class="nt-panel-head"><div><h6>Situação dos leitos</h6><small>agora</small></div><span class="nt-pill" id="ntPillLeitos">—</span></div>
+        <div class="nt-chart-wrap" style="height:170px"><canvas id="ntChartStatus" role="img" aria-label="Distribuição dos leitos por situação"></canvas>
+          <div class="nt-donut-center"><b id="ntDonutValor">—</b><span>ocupação</span></div></div>
+        <div class="nt-legend" id="ntLegendaStatus"></div>
+      </div>
+    </section>
+
+    <!-- Controles de Ação, Busca e Filtros -->
+    <div class="row g-3 mb-4 align-items-center">
+      <div class="col-lg-6 d-flex gap-2 flex-wrap">
+        <button type="button" class="btn btn-success fw-semibold" id="btnAdmitirPaciente" onclick="abrirNovaInternacaoGenerica()">
+          <i class="bi bi-person-plus-fill"></i> Admitir Paciente
+        </button>
+        <button type="button" class="btn btn-danger fw-semibold d-none" id="btnAdmitirVagaZero" onclick="abrirAdmitirUEN()">
+          <i class="bi bi-lightning-charge-fill"></i> Admitir Vaga Zero
+        </button>
+        <button type="button" class="btn btn-warning fw-semibold text-dark" data-bs-toggle="modal" data-bs-target="#modalEditarInternacao">
+          <i class="bi bi-pencil-square"></i> Editar
+        </button>
+        <button type="button" class="btn btn-primary fw-semibold" data-bs-toggle="modal" data-bs-target="#modalMovimentacao">
+          <i class="bi bi-box-arrow-right"></i> Registrar Saída
+        </button>
+      </div>
+
+      <div class="col-lg-3 col-md-6">
+        <div class="input-group">
+          <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+          <input type="text" id="inputBusca" class="form-control" placeholder="Buscar paciente ou leito..." onkeyup="filtrarEBuscar()">
+        </div>
+      </div>
+
+      <div class="col-lg-3 col-md-6">
+        <div class="d-flex gap-2 align-items-center justify-content-md-end flex-wrap bg-white px-3 py-2 border" style="border-radius:14px" id="filtrosStatusLeito">
+          <span class="fw-bold small me-1">Status:</span>
+          <div class="form-check form-check-inline m-0">
+            <input class="form-check-input filter-check" type="checkbox" id="chkLivre" value="Livre" checked onchange="filtrarEBuscar()">
+            <label class="form-check-label small" for="chkLivre">Livres</label>
+          </div>
+          <div class="form-check form-check-inline m-0">
+            <input class="form-check-input filter-check" type="checkbox" id="chkOcupado" value="Ocupado" checked onchange="filtrarEBuscar()">
+            <label class="form-check-label small" for="chkOcupado">Ocupados</label>
+          </div>
+          <div class="form-check form-check-inline m-0">
+            <input class="form-check-input filter-check" type="checkbox" id="chkReserva" value="Reserva" checked onchange="filtrarEBuscar()">
+            <label class="form-check-label small" for="chkReserva">Reservados</label>
+          </div>
+          <div class="form-check form-check-inline m-0">
+            <input class="form-check-input filter-check" type="checkbox" id="chkBloqueado" value="Bloqueado" checked onchange="filtrarEBuscar()">
+            <label class="form-check-label small" for="chkBloqueado">Bloqueados</label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pacientes transferidos para este setor sem leito cadastrado ainda -->
+    <div class="alert alert-warning d-none mb-4" id="alertaSemLeito">
+      <h6 class="fw-bold mb-2"><i class="bi bi-exclamation-triangle-fill me-1"></i> Pacientes aguardando atribuição de leito neste setor</h6>
+      <div class="list-group" id="listaSemLeito"></div>
+    </div>
+
+    <!-- Painel Principal de Leitos -->
+    <h5 class="nt-section-title"><i class="bi bi-grid-3x3-gap-fill"></i> Leitos · <span id="tituloSetor" class="text-primary"></span></h5>
+    <div class="row g-3 mb-5" id="grid-leitos"></div>
+  </div>
+
+  <!-- Offcanvas Detalhes -->
+  <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasPaciente">
+    <div class="offcanvas-header bg-danger text-white">
+      <h5 class="offcanvas-title fw-bold" id="offcanvasLabel"><i class="bi bi-person-badge me-2"></i>Detalhes do Leito</h5>
+      <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body" id="offcanvasBody"></div>
+  </div>
+
+  <!-- Modal Gerenciar Leitos -->
+  <div class="modal fade" id="modalGerenciarLeitos" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header bg-dark text-white">
+          <h5 class="modal-title fw-bold"><i class="bi bi-gear-fill me-2"></i>Gerenciar Leitos do Setor</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <form id="formNovoLeito" class="row g-2 mb-4">
+            <div class="col-8">
+              <input type="text" id="novoNumeroLeito" class="form-control" placeholder="Nome/Nº do Leito (Ex: Leito 11)" required>
+            </div>
+            <div class="col-4">
+              <button type="submit" class="btn btn-success w-100 fw-semibold"><i class="bi bi-plus-lg"></i> Criar</button>
+            </div>
+          </form>
+          <h6>Leitos Atuais do Setor</h6>
+          <ul class="list-group" id="listaGerencialLeitos"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Nova Internação -->
+  <div class="modal fade" id="modalInternacao" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <form id="formInternacao">
+          <div class="modal-header bg-success text-white">
+            <h5 class="modal-title fw-bold"><i class="bi bi-person-plus-fill me-2"></i> Nova Internação</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body row g-3">
+            <!-- FASE 1 (ACR): busca rápida por CPF / Cartão SUS que preenche o formulário automaticamente. -->
+            <div class="col-12">
+              <div class="border rounded p-2" style="background:var(--card-2)">
+                <div class="d-flex flex-wrap gap-2 align-items-end">
+                  <div style="min-width:140px">
+                    <label class="form-label mb-1 small fw-semibold">Buscar paciente por</label>
+                    <select class="form-select form-select-sm" id="intBuscaTipo"><option value="CPF">CPF</option><option value="SUS">Cartão SUS</option></select>
+                  </div>
+                  <div class="flex-grow-1" style="min-width:180px">
+                    <label class="form-label mb-1 small fw-semibold">Documento</label>
+                    <input type="text" class="form-control form-control-sm" id="intBuscaDoc" inputmode="numeric" placeholder="Somente números" autocomplete="off">
+                  </div>
+                  <button type="button" class="btn btn-sm btn-natus fw-semibold" onclick="buscarDocumentoInternacao()"><i class="bi bi-search me-1"></i>Buscar</button>
+                  <button type="button" class="btn btn-sm btn-light" onclick="limparBuscaInternacao()" title="Limpar / novo cadastro"><i class="bi bi-eraser"></i></button>
+                </div>
+                <div class="small mt-1" id="intBuscaStatus" role="status" aria-live="polite"></div>
+              </div>
+            </div>
+            <div class="col-md-6"><label class="form-label">Data</label><input type="date" class="form-control" id="intData" required></div>
+            <div class="col-md-6"><label class="form-label">Hora</label><input type="time" class="form-control" id="intHora" required></div>
+            <div class="col-md-8"><label class="form-label" id="intNomeLabel">Nome do Recém-Nascido / Paciente</label><input type="text" class="form-control" id="intNome" placeholder="RN de..." required></div>
+            <div class="col-md-4 d-none" id="intTipoPacienteWrap"><label class="form-label">Tipo de Internação</label><select class="form-select" id="intTipoPaciente"><option value="RN">RN</option><option value="MAE">Mãe</option></select></div>
+            <div class="col-md-4"><label class="form-label">Data de Nascimento</label><input type="date" class="form-control" id="intNasc" required></div>
+            <div class="col-md-4">
+              <label class="form-label">Nº Prontuário</label>
+              <input type="text" class="form-control" id="intProntuario" placeholder="Ex: 123456">
+            </div>
+            <div class="col-md-4" id="intHoraNascWrap"><label class="form-label">Hora Nasc.</label><input type="time" class="form-control" id="intHoraNasc"></div>
+            <div class="col-md-4" id="intIGWrap">
+              <label class="form-label">IG (Idade Gestacional)</label>
+              <input type="text" class="form-control" id="intIG" placeholder="Ex: 38 semanas">
+            </div>
+            <div class="col-md-4" id="intSexoWrap">
+              <label class="form-label">Sexo</label>
+              <select class="form-select" id="intSexo" required>
+                <option value="M">Masculino</option>
+                <option value="F">Feminino</option>
+              </select>
+            </div>
+            <!-- FASE 1 (ACR): documentos coletados/preenchidos pela busca rápida -->
+            <div class="col-md-4"><label class="form-label">CPF</label><input type="text" class="form-control" id="intCpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00"></div>
+            <div class="col-md-4"><label class="form-label">Cartão SUS</label><input type="text" class="form-control" id="intCartaoSus" inputmode="numeric" maxlength="20" placeholder="Número do CNS"></div>
+            <div class="col-md-4"><label class="form-label">Telefone / WhatsApp</label><input type="text" class="form-control" id="intTelefone" inputmode="tel" maxlength="20" placeholder="(92) 9...."></div>
+            <div class="col-md-4"><label class="form-label">Leito Livre</label><select class="form-select" id="intLeito" required></select></div>
+            <div class="col-md-4">
+              <label class="form-label">Procedência</label>
+              <select class="form-select" id="intProcedencia" required></select>
+            </div>
+            <div class="col-md-8 d-none" id="intProcedenciaOutroWrap">
+              <label class="form-label">Hospital / Município de Procedência</label>
+              <select class="form-select" id="intProcedenciaOutro">
+                <option value="">Selecione...</option>
+              </select>
+            </div>
+            <div class="col-md-6" id="intProcedimentoWrap">
+              <label class="form-label d-block" id="intProcedimentoLabel">Tipo de Parto</label>
+              <div class="btn-group w-100">
+                <input type="radio" class="btn-check" name="tipoParto" id="partoNormal" value="Normal" checked>
+                <label class="btn btn-outline-primary" for="partoNormal">PN - Normal</label>
+                <input type="radio" class="btn-check" name="tipoParto" id="partoCesarea" value="Cesárea">
+                <label class="btn btn-outline-primary" for="partoCesarea">PC - Cesárea</label>
+                <input type="radio" class="btn-check" name="tipoParto" id="partoClinico" value="Tratamento Clínico">
+                <label class="btn btn-outline-primary" for="partoClinico">Tratamento Clínico</label>
+              </div>
+            </div>
+            <div class="col-md-6" id="pesoNascerPadraoWrap">
+              <label class="form-label d-block">Faixa de Peso</label>
+              <div class="btn-group w-100">
+                <input type="radio" class="btn-check" name="pesoNascer" id="peso1" value="<1500 g" checked>
+                <label class="btn btn-outline-primary" for="peso1">&lt; 1500g</label>
+                <input type="radio" class="btn-check" name="pesoNascer" id="peso2" value="1500-2499 g">
+                <label class="btn btn-outline-primary" for="peso2">1500–2499g</label>
+                <input type="radio" class="btn-check" name="pesoNascer" id="peso3" value="≥2500 g">
+                <label class="btn btn-outline-primary" for="peso3">&ge; 2500g</label>
+              </div>
+            </div>
+            <!-- Faixa de Peso exclusiva da UCINCA (V15): categorias mais granuladas usadas apenas
+                 na Nova Internação deste setor. Ver alternarFaixaPesoPorSetor(). -->
+            <div class="col-md-6 d-none" id="pesoNascerUcincaWrap">
+              <label class="form-label d-block">Faixa de Peso (UCINCA)</label>
+              <div class="btn-group w-100 flex-wrap">
+                <input type="radio" class="btn-check" name="pesoNascerUcinca" id="pesoU1" value="1250-1499 g" checked>
+                <label class="btn btn-outline-primary" for="pesoU1">1250–1499g</label>
+                <input type="radio" class="btn-check" name="pesoNascerUcinca" id="pesoU2" value="1500-1799 g">
+                <label class="btn btn-outline-primary" for="pesoU2">1500–1799g</label>
+                <input type="radio" class="btn-check" name="pesoNascerUcinca" id="pesoU3" value="1800-2000 g">
+                <label class="btn btn-outline-primary" for="pesoU3">1800–2000g</label>
+                <input type="radio" class="btn-check" name="pesoNascerUcinca" id="pesoU4" value=">2000 g">
+                <label class="btn btn-outline-primary" for="pesoU4">&gt; 2000g</label>
+              </div>
+            </div>
+            <div class="col-12 d-none" id="intObservacaoWrap">
+              <label class="form-label">Observação / Procedimento Realizado</label>
+              <textarea class="form-control" id="intObservacaoProcedimento" rows="3" placeholder="Descreva o procedimento ou observações clínicas..."></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-success fw-semibold">Confirmar Internação</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Admitir Vaga Zero (UEN) -->
+  <div class="modal fade" id="modalAdmitirUEN" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <form id="formAdmitirUEN">
+          <div class="modal-header bg-danger text-white">
+            <h5 class="modal-title fw-bold"><i class="bi bi-lightning-charge-fill me-2"></i> Admitir Vaga Zero — Leito Extra CCO Neonatal</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body row g-3">
+            <div class="col-12">
+              <div class="alert alert-info small mb-0">
+                <i class="bi bi-info-circle me-1"></i> O leito virtual (ex.: LT Extra-04) é criado automaticamente ao confirmar - não é necessário selecionar leito.
+              </div>
+            </div>
+            <div class="col-md-8"><label class="form-label">Nome da Mãe / RN</label><input type="text" class="form-control" id="uenNome" placeholder="RN de..." required></div>
+            <div class="col-md-4"><label class="form-label">Nº Prontuário</label><input type="text" class="form-control" id="uenProntuario" placeholder="Ex: 123456"></div>
+            <div class="col-md-4"><label class="form-label">Data de Nascimento</label><input type="date" class="form-control" id="uenDataNasc" required></div>
+            <div class="col-md-4"><label class="form-label">Hora de Nascimento</label><input type="time" class="form-control" id="uenHoraNasc"></div>
+            <div class="col-md-4"><label class="form-label">Idade Gestacional</label><input type="text" class="form-control" id="uenIG" placeholder="Ex: 38 semanas"></div>
+            <div class="col-md-4" id="editSexoWrap">
+              <label class="form-label">Sexo</label>
+              <select class="form-select" id="uenSexo">
+                <option value="M">Masculino</option>
+                <option value="F">Feminino</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Procedência</label>
+              <select class="form-select" id="uenProcedencia" required></select>
+            </div>
+            <div class="col-md-6 d-none" id="uenProcedenciaOutroWrap">
+              <label class="form-label">Hospital / Município de Procedência</label>
+              <select class="form-select" id="uenProcedenciaOutro">
+                <option value="">Selecione...</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label d-block">Faixa de Peso</label>
+              <div class="btn-group w-100">
+                <input type="radio" class="btn-check" name="uenPeso" id="uenPeso1" value="<1500 g" checked>
+                <label class="btn btn-outline-danger" for="uenPeso1">&lt; 1500g</label>
+                <input type="radio" class="btn-check" name="uenPeso" id="uenPeso2" value="1500-2499 g">
+                <label class="btn btn-outline-danger" for="uenPeso2">1500–2499g</label>
+                <input type="radio" class="btn-check" name="uenPeso" id="uenPeso3" value="≥2500 g">
+                <label class="btn btn-outline-danger" for="uenPeso3">&ge; 2500g</label>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label d-block">Gravidade</label>
+              <div class="btn-group w-100">
+                <input type="radio" class="btn-check" name="uenGravidade" id="uenGravLeve" value="Leve">
+                <label class="btn btn-outline-success" for="uenGravLeve">Leve</label>
+                <input type="radio" class="btn-check" name="uenGravidade" id="uenGravModerada" value="Moderada" checked>
+                <label class="btn btn-outline-warning" for="uenGravModerada">Moderada</label>
+                <input type="radio" class="btn-check" name="uenGravidade" id="uenGravGrave" value="Grave">
+                <label class="btn btn-outline-danger" for="uenGravGrave">Grave</label>
+              </div>
+            </div>
+            <div class="col-md-6"><label class="form-label">Data de Entrada no Leito Extra CCO Neonatal</label><input type="date" class="form-control" id="uenDataEntrada" required></div>
+            <div class="col-md-6"><label class="form-label">Horário de Entrada</label><input type="time" class="form-control" id="uenHoraEntrada" required></div>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-danger fw-semibold">Confirmar Admissão Vaga Zero</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Saída / Movimentação -->
+  <div class="modal fade" id="modalMovimentacao" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form id="formMovimentacao">
+          <div class="modal-header bg-primary text-white">
+            <h5 class="modal-title fw-bold"><i class="bi bi-box-arrow-right me-2"></i> Registrar Saída</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body row g-3">
+            <div class="col-md-8">
+              <label class="form-label">Paciente Internado</label>
+              <select class="form-select" id="movPaciente" required></select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Leito Selecionado</label>
+              <input class="form-control" id="movLeito" readonly>
+            </div>
+            <div class="col-md-6"><label class="form-label">Data</label><input type="date" class="form-control" id="movData" required></div>
+            <div class="col-md-6"><label class="form-label">Hora</label><input type="time" class="form-control" id="movHora" required></div>
+            <div class="col-md-6">
+              <label class="form-label">Tipo de Saída</label>
+              <select class="form-select" id="movTipo" required onchange="atualizarOpcoesDestino()">
+                <option value="Alta">Alta</option>
+                <option value="Obito">Óbito</option>
+                <option value="Evasao" class="opcaoEvasaoALCON d-none">Evasão</option>
+                <option value="Transferencia">Transferência</option>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Destino</label>
+              <select class="form-select" id="movDestino" required></select>
+            </div>
+            <div class="col-md-12 d-none" id="movLeitoDestinoWrap">
+              <label class="form-label">Leito disponível no setor de destino</label>
+              <select class="form-select" id="movLeitoDestino"></select>
+              <div class="form-text">A transferência interna será registrada automaticamente no setor e leito selecionados.</div>
+            </div>
+            <div class="col-md-12 d-none alert alert-warning small mb-0" id="movAvisoSetorSemLeito">
+              <i class="bi bi-exclamation-triangle-fill me-1"></i>
+              Este setor ainda não possui leitos cadastrados no sistema. A transferência será registrada mesmo assim; quando o setor for configurado (leitos cadastrados), atribua o leito ao paciente na tela do setor de destino, na lista "Pacientes aguardando atribuição de leito".
+            </div>
+            <div class="col-md-12 d-none" id="movMunicipioWrap">
+              <label class="form-label">Município de Destino</label>
+              <select class="form-select" id="movMunicipio"></select>
+            </div>
+            <div class="col-md-12 d-none" id="movPesoSaidaWrap">
+              <label class="form-label">Peso do RN na Saída (gramas)</label>
+              <input type="number" class="form-control" id="movPesoSaida" min="300" max="6000" step="1" placeholder="Ex: 1800">
+              <div class="form-text">Alta Domiciliar (Capital): a partir de 1.600g · Alta Outro Município: em média a partir de 2.500g. Usado para calcular altas antes/dentro/muito além do peso ideal.</div>
+            </div>
+            <div class="col-md-6 d-none" id="movAleitamentoWrap">
+              <label class="form-label d-block">Aleitamento Exclusivo na Alta</label>
+              <div class="btn-group w-100">
+                <input type="radio" class="btn-check" name="movAleitamento" id="movAleitamentoSim" value="Sim">
+                <label class="btn btn-outline-success" for="movAleitamentoSim">Sim</label>
+                <input type="radio" class="btn-check" name="movAleitamento" id="movAleitamentoNao" value="Não">
+                <label class="btn btn-outline-secondary" for="movAleitamentoNao">Não</label>
+              </div>
+            </div>
+            <!-- Etapa do Método Canguru: exclusiva da UCINCA (V15) - ver atualizarOpcoesDestino().
+                 Menu reduzido a apenas "Não se Aplica" e "3ª Etapa (Ambulatorial)". -->
+            <div class="col-md-6 d-none" id="movEtapaCanguruWrap">
+              <label class="form-label">Etapa do Método Canguru</label>
+              <select class="form-select" id="movEtapaCanguru">
+                <option value="">Não se Aplica</option>
+                <option value="3ª Etapa (Ambulatorial)">3ª Etapa (Ambulatorial)</option>
+              </select>
+            </div>
+            <div class="col-md-12">
+              <label class="form-label">Observação</label>
+              <textarea class="form-control" id="movObs" rows="2"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary fw-semibold">Confirmar Registro</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Alterar Status do Leito -->
+  <div class="modal fade" id="modalAlterarStatusLeito" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+      <div class="modal-content">
+        <form id="formAlterarStatusLeito">
+          <div class="modal-header">
+            <h5 class="modal-title fw-bold"><i class="bi bi-sliders me-2"></i>Alterar Status do Leito</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="statusLeitoId">
+            <div class="mb-3">
+              <label class="form-label fw-semibold">Leito</label>
+              <input type="text" class="form-control" id="statusLeitoNumero" readonly>
+            </div>
+            <div class="mb-1">
+              <label class="form-label fw-semibold">Status</label>
+              <select class="form-select" id="statusLeitoNovo" required>
+                <option value="Livre">Livre</option>
+                <option value="Reservado">Reservado</option>
+                <option value="Bloqueado">Bloqueado</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-primary" id="btnSalvarStatusLeito">Salvar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Troca de Leito -->
+  <div class="modal fade" id="modalTrocaLeito" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <form id="formTrocaLeito">
+          <div class="modal-header bg-info text-white">
+            <h5 class="modal-title fw-bold"><i class="bi bi-arrow-left-right me-2"></i> Troca de Leito</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="trocaIdInternacao">
+            <div class="alert alert-info small">
+              <i class="bi bi-info-circle me-1"></i>
+              A troca ocorre somente dentro do mesmo setor e <strong>não gera nova internação</strong>.
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Paciente</label>
+              <input type="text" class="form-control" id="trocaPaciente" readonly>
+            </div>
+            <div class="mb-3">
+              <label class="form-label">Novo Leito Disponível</label>
+              <select class="form-select" id="trocaNovoLeito" required></select>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-info text-white fw-semibold">Confirmar Troca</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Contato Pele a Pele é lançado dentro de Indicadores de Qualidade / Método Canguru. -->
+  <!-- Modal Indicadores de Qualidade de Leito / Método Canguru -->
+  <div class="modal fade" id="modalIndicadoresLeito" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <form id="formIndicadoresLeito">
+          <div class="modal-header bg-teal text-white" style="background-color:#0dcaf0;">
+            <h5 class="modal-title fw-bold"><i class="bi bi-heart-pulse-fill me-2"></i> Indicadores de Qualidade / Método Canguru — Lançamento Diário</h5>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body row g-3">
+            <input type="hidden" id="indLeitoId">
+            <input type="hidden" id="indIdInternacao">
+            <input type="hidden" id="indNascimento">
+            <div class="col-md-6">
+              <label class="form-label">Paciente</label>
+              <input type="text" class="form-control" id="indPaciente" readonly>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Data do Lançamento</label>
+              <input type="date" class="form-control" id="indData" required>
+            </div>
+
+            <div class="col-12"><hr class="my-1"><h6 class="fw-bold text-secondary">Cuidados & Visitação</h6></div>
+            <div class="col-md-4">
+              <label class="form-label small d-block">Extração de Leite Beira-Leito</label>
+              <div class="btn-group w-100">
+                <input type="radio" class="btn-check" name="indExtracao" id="indExtracaoSim" value="Sim">
+                <label class="btn btn-outline-success btn-sm" for="indExtracaoSim">Sim</label>
+                <input type="radio" class="btn-check" name="indExtracao" id="indExtracaoNao" value="Não" checked>
+                <label class="btn btn-outline-secondary btn-sm" for="indExtracaoNao">Não</label>
+              </div>
+            </div>
+            <div class="col-md-2 form-check form-switch pt-4">
+              <input class="form-check-input" type="checkbox" role="switch" id="indVisitaMae">
+              <label class="form-check-label small" for="indVisitaMae">Mãe</label>
+            </div>
+            <div class="col-md-2 form-check form-switch pt-4">
+              <input class="form-check-input" type="checkbox" role="switch" id="indVisitaPai">
+              <label class="form-check-label small" for="indVisitaPai">Pai</label>
+            </div>
+            <div class="col-md-2 form-check form-switch pt-4">
+              <input class="form-check-input" type="checkbox" role="switch" id="indVisitaIrmao">
+              <label class="form-check-label small" for="indVisitaIrmao">Visita Irmão</label>
+            </div>
+            <div class="col-md-2 form-check form-switch pt-4">
+              <input class="form-check-input" type="checkbox" role="switch" id="indVisitaAvos">
+              <label class="form-check-label small" for="indVisitaAvos">Visita Avós</label>
+            </div>
+
+            <div class="col-12">
+              <hr class="my-1">
+              <h6 class="fw-bold text-secondary mb-2"><i class="bi bi-person-heart me-1 text-danger"></i>Contato Pele a Pele — Lançamento Diário</h6>
+              <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                  <label class="form-label small fw-semibold">Contato pele a pele realizado?</label>
+                  <div class="btn-group w-100">
+                    <input type="radio" class="btn-check" name="indPeleRealizado" id="indPeleSim" value="Sim" checked>
+                    <label class="btn btn-outline-success btn-sm" for="indPeleSim">Sim</label>
+                    <input type="radio" class="btn-check" name="indPeleRealizado" id="indPeleNao" value="Não">
+                    <label class="btn btn-outline-secondary btn-sm" for="indPeleNao">Não</label>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label small fw-semibold">Duração (min)</label>
+                  <input type="number" class="form-control form-control-sm" id="indPeleDuracao" min="0" max="600" value="0">
+                </div>
+                <div class="col-md-5">
+                  <div class="alert alert-info py-2 mb-0 small">
+                    <strong id="indPeleDiaVida">Calculando...</strong><br>
+                    <span class="text-muted">A classificação é automática pela data de nascimento.</span>
+                  </div>
+                </div>
+              </div>
+              <div class="d-flex justify-content-end mt-2">
+                <button type="button" class="btn btn-sm btn-danger fw-semibold" id="btnSalvarContatoIndicador" onclick="salvarContatoPeleAPeleDoIndicador()">
+                  <i class="bi bi-check2-circle me-1"></i>Salvar Contato Pele a Pele do Dia
+                </button>
+              </div>
+              <div class="mt-3">
+                <div class="small fw-bold text-muted mb-1">Lançamentos Anteriores de Contato Pele a Pele desta Internação</div>
+                <div id="indPeleHistorico" class="small text-muted">Nenhum lançamento anterior.</div>
+              </div>
+            </div>
+
+            <div class="col-12" id="indHistoricoWrap">
+              <hr class="my-1">
+              <h6 class="fw-bold text-secondary mb-2">Lançamentos Anteriores desta Internação</h6>
+              <div id="indHistorico" class="small text-muted">Nenhum lançamento anterior.</div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+            <button type="submit" class="btn btn-info text-white fw-semibold">Salvar Indicadores do Dia</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Editar Internação -->
+  <div class="modal fade" id="modalEditarInternacao" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <form id="formEditarInternacao">
+          <div class="modal-header bg-warning text-dark">
+            <h5 class="modal-title fw-bold"><i class="bi bi-pencil-square me-2"></i> Editar Dados de Internação</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body row g-3">
+            <div class="col-md-12">
+              <label class="form-label fw-semibold">Selecione o Paciente</label>
+              <select class="form-select" id="editSelectPaciente" required onchange="carregarDadosEdicao()"></select>
+            </div>
+            <hr class="my-2">
+            <input type="hidden" id="editIdPaciente">
+            <input type="hidden" id="editIdInternacao">
+            <div class="col-md-8">
+              <label class="form-label">Nome</label>
+              <input type="text" class="form-control" id="editNome" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Nº Prontuário</label>
+              <input type="text" class="form-control" id="editProntuario">
+            </div>
+            <div class="col-md-4" id="editPesoWrap">
+              <label class="form-label">Faixa de Peso</label>
+              <select class="form-select" id="editPeso" required>
+                <option value="<1500 g">&lt; 1500g</option>
+                <option value="1500-2499 g">1500–2499g</option>
+                <option value="≥2500 g">&ge; 2500g</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Procedência</label>
+              <select class="form-select" id="editProcedencia" required></select>
+            </div>
+            <div class="col-md-4 d-none" id="editProcedenciaOutroWrap">
+              <label class="form-label">Hospital / Município de Procedência</label>
+              <select class="form-select" id="editProcedenciaOutro">
+                <option value="">Selecione...</option>
+              </select>
+            </div>
+            <div class="col-md-4 d-none" id="editGravidadeWrap">
+              <label class="form-label">Gravidade</label>
+              <select class="form-select" id="editGravidade">
+                <option value="Leve">Leve</option><option value="Moderada">Moderada</option><option value="Grave">Grave</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Sexo</label>
+              <select class="form-select" id="editSexo" required>
+                <option value="M">Masculino</option>
+                <option value="F">Feminino</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Data de Nascimento</label>
+              <input type="date" class="form-control" id="editNasc" required>
+            </div>
+            <div class="col-md-4" id="editHoraNascWrap">
+              <label class="form-label">Hora Nasc.</label>
+              <input type="time" class="form-control" id="editHoraNasc">
+            </div>
+            <div class="col-md-4" id="editIGWrap">
+              <label class="form-label">IG (Idade Gestacional)</label>
+              <input type="text" class="form-control" id="editIG" placeholder="Ex: 38 semanas">
+            </div>
+            <div class="col-md-8" id="editProcedimentoWrap">
+              <label class="form-label d-block" id="editProcedimentoLabel">Tipo de Parto</label>
+              <div class="btn-group w-100">
+                <input type="radio" class="btn-check" name="editTipoParto" id="editPartoNormal" value="Normal" checked>
+                <label class="btn btn-outline-primary" for="editPartoNormal">PN - Normal</label>
+                <input type="radio" class="btn-check" name="editTipoParto" id="editPartoCesarea" value="Cesárea">
+                <label class="btn btn-outline-primary" for="editPartoCesarea">PC - Cesárea</label>
+                <input type="radio" class="btn-check" name="editTipoParto" id="editPartoClinico" value="Tratamento Clínico">
+                <label class="btn btn-outline-primary" for="editPartoClinico">Tratamento Clínico</label>
+              </div>
+            </div>
+            <div class="col-12 d-none" id="editObservacaoWrap">
+              <label class="form-label">Observação / Procedimento Realizado</label>
+              <textarea class="form-control" id="editObservacaoProcedimento" rows="3"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-warning fw-semibold">Salvar Alterações</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    let setorAtualParam = "<?!= setorParam ?>";
+    const token = "<?!= token ?>";
+    const appUrl = "<?!= appUrl ?>";
+    const perfilUsuario = "<?!= perfilUsuario ?>";
+    let globalDataLeitos = [];
+    let globalInternadosAtivos = [];
+    let globalPacientesSemLeito = [];
+    let listaSetoresGlobal = [];
+
+    const OPCOES_ORIGEM_BASE = ["DOMICILIAR", "ADMISSÃO", "CCO", "PPP", "UCINCA", "UCINCO", "UTIN 1", "UTIN 2", "UTIN 3", "ALCON 1", "ALCON 2", "SRPA", "UEN", "OUTRO HOSPITAL", "VAGA ZERO", "VIA PÚBLICA"];
+    const ROTULO_SETOR = { "UEN": "Leito Extra CCO Neonatal" };
+    function rotuloSetor(valor) { return ROTULO_SETOR[String(valor || '').trim().toUpperCase()] || String(valor || ''); }
+    const OPCOES_PROCEDENCIA_EXTERNA = [
+      "HSP. ADRIANO JORGE","FND. ALFREDO DA MATA","MAT. ALVORADA","MAT. AZILDA MARREIRO",
+      "MAT. BALBINA MESTRINHO","HSP. CHAPOT PREVOST","MAT. DONA LINDU","HSP. DR. FAJARDO",
+      "HSP. FRANCISCA MENDES","HSP. GETÚLIO VARGAS","HSP. JOÃOZINHO","HSP. ICAM",
+      "HEMOAM",
+      "MAT. MOURA TAPAJÓS","MAT. NAZIRA DAOU","HSP. 28 DE AGOSTO","HSP. OUTRO",
+      "ALVARÃES","AMATURÁ","ANAMÃ","ANORÍ","APUÍ","ATALAIA DO NORTE","AUTAZES","BARCELOS",
+      "BARREIRINHA","BENJAMIN CONSTANT","BERURI","BOA VISTA DO RAMOS","BOCA DO ACRE","BORBA",
+      "CAAPIRANGA","CANUTÃMA","CARAUARI","CAREIRO CASTANHO","CAREIRO DA VÁRZEA","COARI",
+      "CODAJÁS","EIRUNEPÉ","ENVIRA","FONTE BOA","GUAJARÁ","HUMAITÁ","IPIXUNA","IRANDUBA",
+      "ITACOATIARA","ITAMARATI","ITAPIRANGA","JAPURÁ","JURUÁ","JUTAÍ","LABREA","MANACAPURU",
+      "MANAQUIRI","MANICORÉ","MARAÃ","MAUÉS","NHAMUNDÁ","NOVA OLINDA DO NORTE","NOVO AIRÃO",
+      "NOVO ARIPUANÃ","PARINTINS","PAUINI","PRESIDENTE FIGUEIREDO","RIO PRETO DA EVA",
+      "SANTA ISABEL DO RIO NEGRO","SANTO ANTONIO DO ICÁ","SÃO GABRIEL DA CACHOEIRA",
+      "SAO PAULO DE OLIVENÇA","SAO SEBASTIAO DO UATUMÃ","SILVES","TABATINGA","TAPAUÁ","TEFÉ",
+      "TONANTINS","UARINI","URUCARÁ","URUCURITUBA","OUTRA PROCEDÊNCIA"
+    ];
+    const OPCOES_SETORES_INTERNOS = ["CCO","PPP","UCINCA","UCINCO","UTIN 1","UTIN 2","UTIN 3","ALCON 1","ALCON 2","UTI MATERNA","CUIDADOS ESPECIAIS","ABRIGO","UEN"];
+    const OPCOES_DESTINO_BASE = [
+      "UEN","UCINCO","UTIN 1","UTIN 2","UTIN 3","ALCON 1","ALCON 2","UCINCA","CUIDADOS ESPECIAIS","ABRIGO",
+      "HSP. ADRIANO JORGE","FND. ALFREDO DA MATA","MAT. ALVORADA","MAT. AZILDA MARREIRO",
+      "MAT. BALBINA MESTRINHO","HSP. CHAPOT PREVOST","MAT. DONA LINDU","HSP. DR. FAJARDO",
+      "HSP. FRANCISCA MENDES","HSP. GETÚLIO VARGAS","HSP. JOÃOZINHO","HSP. ICAM",
+      "HEMOAM",
+      "MAT. MOURA TAPAJÓS","MAT. NAZIRA DAOU","HSP. 28 DE AGOSTO","HSP. OUTRO"
+    ];
+
+    const OPCOES_MUNICIPIOS = OPCOES_PROCEDENCIA_EXTERNA.slice(16, -1);
+
+    function dataLocalISO() {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const dia = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${dia}`;
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      // Não usar toISOString(): ele converte para UTC e pode avançar o dia em Manaus.
+      const hoje = dataLocalISO();
+      const hora = new Date().toTimeString().split(' ')[0].substring(0, 5);
+      document.getElementById('intData').value = hoje;
+      document.getElementById('intHora').value = hora;
+      document.getElementById('movData').value = hoje;
+      document.getElementById('movHora').value = hora;
+
+      iniciarPainelComCache();
+    });
+
+    function trocarSetor(novoSetor) {
+      if (String(novoSetor).toUpperCase() === String(setorAtualParam).toUpperCase()) return;
+      setorAtualParam = novoSetor;
+      assinaturaPainel = '';
+      iniciarPainelComCache();
+    }
+
+    function abrirDashboard() {
+      window.top.location.href = `${appUrl}?view=dashboard&token=${token}&setor=${encodeURIComponent(setorAtualParam)}`;
+    }
+
+    function voltarParaNIR() {
+      window.top.location.href = `${appUrl}?view=nir&token=${token}`;
+    }
+
+    function abrirHistorico() {
+      window.top.location.href = `${appUrl}?view=historico&token=${token}`;
+    }
+
+    function travarBotao(btn, texto) {
+      if (!btn) return;
+      if (!btn.dataset.textoOriginal) btn.dataset.textoOriginal = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>${texto}`;
+    }
+
+    function liberarBotao(btn, texto, err) {
+      if (!btn) return;
+      btn.disabled = false;
+      btn.innerHTML = btn.dataset.textoOriginal || texto;
+      if (err) alert((err && err.message) ? err.message : 'Não foi possível concluir a operação.');
+    }
+
+    function alternarExameExterno(leitoId, emExame) {
+      google.script.run.withSuccessHandler(() => carregarDashboard())
+        .withFailureHandler(err => alert(err && err.message ? err.message : 'Não foi possível atualizar o status do exame externo.'))
+        .alterarStatusExameExterno(leitoId, emExame, "<?!= nomeUsuario ?>");
+    }
+
+    // Reset genérico: garante que um botão de confirmação nunca fique "travado" (desabilitado,
+    // com spinner) na próxima vez que a tela/modal for aberta, mesmo que a chamada anterior ao
+    // servidor nunca tenha retornado sucesso nem erro.
+    function resetBotaoModal(seletorBotao, textoOriginal) {
+      const btn = document.querySelector(seletorBotao);
+      if (!btn) return;
+      btn.disabled = false;
+      btn.innerHTML = textoOriginal;
+      delete btn.dataset.textoOriginal;
+    }
+
+    // Limpa o formulário de Nova Internação e libera o botão de confirmação - chamada sempre
+    // que o modal é aberto (tanto pelo botão genérico "Admitir Paciente" quanto por "Admitir
+    // aqui" em um leito específico), para nunca herdar dados/estado da internação anterior.
+    function resetFormInternacao() {
+      resetBotaoModal('#formInternacao button[type="submit"]', 'Confirmar Internação');
+      document.getElementById('intNome').value = '';
+      document.getElementById('intProntuario').value = '';
+      document.getElementById('intNasc').value = '';
+      document.getElementById('intHoraNasc').value = '';
+      document.getElementById('intIG').value = '';
+      document.getElementById('intSexo').value = 'M';
+      document.getElementById('intProcedencia').value = '';
+      document.getElementById('intObservacaoProcedimento').value = '';
+      // FASE 1: documentos e busca por CPF/Cartão SUS voltam ao estado inicial.
+      const cpf = document.getElementById('intCpf'); if (cpf) cpf.value = '';
+      const sus = document.getElementById('intCartaoSus'); if (sus) sus.value = '';
+      const tel = document.getElementById('intTelefone'); if (tel) tel.value = '';
+      const buscaDoc = document.getElementById('intBuscaDoc'); if (buscaDoc) buscaDoc.value = '';
+      statusBuscaInternacao('');
+      const tp = document.getElementById('intTipoPaciente'); if (tp) tp.value = 'RN';
+      const wrapOutro = document.getElementById('intProcedenciaOutroWrap');
+      if (wrapOutro) wrapOutro.classList.add('d-none');
+      const partoNormal = document.getElementById('partoNormal');
+      if (partoNormal) partoNormal.checked = true;
+      const pesoPadrao = document.querySelector('input[name="pesoNascer"]');
+      if (pesoPadrao) pesoPadrao.checked = true;
+      const pesoUcinca = document.querySelector('input[name="pesoNascerUcinca"]');
+      if (pesoUcinca) pesoUcinca.checked = true;
+      alternarCamposPorSetor();
+      document.getElementById('intData').value = dataLocalISO();
+      document.getElementById('intHora').value = new Date().toTimeString().split(' ')[0].substring(0, 5);
+    }
+
+    // FASE 1 (ACR): busca rápida por CPF/Cartão SUS dentro do modal de Nova Internação.
+    // Reaproveita o RPC buscarPacientePorDocumento e preenche Nome/Nascimento/CPF/SUS.
+    function mascaraCpfPainel(v) {
+      const d = String(v == null ? '' : v).replace(/\D/g, '').substring(0, 11);
+      if (d.length <= 3) return d;
+      if (d.length <= 6) return d.replace(/(\d{3})(\d+)/, '$1.$2');
+      if (d.length <= 9) return d.replace(/(\d{3})(\d{3})(\d+)/, '$1.$2.$3');
+      return d.replace(/(\d{3})(\d{3})(\d{3})(\d+)/, '$1.$2.$3-$4');
+    }
+    function statusBuscaInternacao(txt, classe) {
+      const s = document.getElementById('intBuscaStatus');
+      if (!s) return;
+      s.textContent = txt || '';
+      s.style.color = classe === 'ok' ? 'var(--ok)' : classe === 'novo' ? 'var(--warn)' : classe === 'erro' ? 'var(--bad)' : '';
+      s.style.fontWeight = txt ? '600' : '';
+    }
+    function buscarDocumentoInternacao() {
+      const tipo = (document.getElementById('intBuscaTipo').value || 'CPF').toUpperCase();
+      const doc = String(document.getElementById('intBuscaDoc').value || '').replace(/\D/g, '');
+      if (doc.length < 11) { statusBuscaInternacao('Informe um CPF (11 dígitos) ou Cartão SUS válido.', 'erro'); return; }
+      statusBuscaInternacao('Consultando a base de pacientes...', '');
+      google.script.run.withSuccessHandler(res => {
+        if (res && res.encontrado && res.paciente) {
+          const p = res.paciente;
+          document.getElementById('intNome').value = p.nome || '';
+          document.getElementById('intNasc').value = p.dataNascimento || '';
+          document.getElementById('intSexo').value = (p.sexo === 'M' ? 'M' : 'F');
+          document.getElementById('intCpf').value = p.cpf ? mascaraCpfPainel(p.cpf) : '';
+          document.getElementById('intCartaoSus').value = p.cartaoSus || '';
+          document.getElementById('intTelefone').value = p.telefone || '';
+          if (p.numeroProntuario) document.getElementById('intProntuario').value = p.numeroProntuario;
+          const extra = res.internacaoAtiva ? ` · já internada em ${res.internacaoAtiva.setor}` : '';
+          statusBuscaInternacao(`Paciente localizada: ${p.nome}${extra}. Dados preenchidos automaticamente.`, 'ok');
+        } else {
+          document.getElementById('intNome').value = '';
+          document.getElementById('intNasc').value = '';
+          document.getElementById('intCpf').value = tipo === 'CPF' ? mascaraCpfPainel(doc) : '';
+          document.getElementById('intCartaoSus').value = tipo === 'SUS' ? doc : '';
+          document.getElementById('intTelefone').value = '';
+          statusBuscaInternacao('Nenhum cadastro encontrado. Formulário limpo para um novo registro rápido.', 'novo');
+        }
+      }).withFailureHandler(err => statusBuscaInternacao(err && err.message ? err.message : 'Falha ao consultar o documento.', 'erro'))
+        .buscarPacientePorDocumento({ tipo, documento: doc });
+    }
+    function limparBuscaInternacao() {
+      document.getElementById('intBuscaDoc').value = '';
+      document.getElementById('intCpf').value = '';
+      document.getElementById('intCartaoSus').value = '';
+      statusBuscaInternacao('Formulário pronto para novo cadastro rápido.', 'novo');
+      document.getElementById('intNome').focus();
+    }
+
+    function alternarCamposPorSetor() {
+      const setor = String(setorAtualParam).trim().toUpperCase();
+      const ehUcinca = setor === 'UCINCA';
+      const ehUtiMaterna = setor === 'UTI MATERNA';
+      const ehAlcon = setor === 'ALCON 1' || setor === 'ALCON 2';
+      const tipo = (document.getElementById('intTipoPaciente') || {}).value || 'RN';
+      const ehMae = ehAlcon && tipo === 'MAE';
+      const showPeso = !ehUtiMaterna && !ehMae;
+      const showHora = !ehUtiMaterna && !ehMae;
+      // UTI MATERNA também registra Idade Gestacional; somente Mãe no ALCON não usa IG.
+      const showIG = !ehMae;
+      document.getElementById('intTipoPacienteWrap').classList.toggle('d-none', !ehAlcon);
+      document.getElementById('intHoraNascWrap').classList.toggle('d-none', !showHora);
+      document.getElementById('intIGWrap').classList.toggle('d-none', !showIG);
+      document.getElementById('intSexoWrap').classList.toggle('d-none', ehUtiMaterna || ehMae);
+      document.getElementById('intProcedimentoLabel').textContent = ehUtiMaterna ? 'Procedimento' : 'Tipo de Parto';
+      document.getElementById('partoClinico').classList.toggle('d-none', !ehUtiMaterna);
+      document.querySelector('label[for="partoClinico"]').classList.toggle('d-none', !ehUtiMaterna);
+      document.getElementById('intObservacaoWrap').classList.toggle('d-none', !(ehUtiMaterna || ehAlcon));
+      document.getElementById('pesoNascerPadraoWrap').classList.toggle('d-none', !showPeso || ehUcinca);
+      document.getElementById('pesoNascerUcincaWrap').classList.toggle('d-none', !showPeso || !ehUcinca);
+      if (ehUtiMaterna) {
+        document.getElementById('intSexo').value = 'F';
+        document.getElementById('intNomeLabel').textContent = 'Nome da Paciente';
+      } else if (ehMae) {
+        document.getElementById('intSexo').value = 'F';
+        document.getElementById('intNomeLabel').textContent = 'Nome da Mãe';
+      } else {
+        document.getElementById('intNomeLabel').textContent = 'Nome do Recém-Nascido / Paciente';
+      }
+      if (ehUtiMaterna) {
+        document.getElementById('partoNormal').checked = true;
+        document.getElementById('partoCesarea').checked = false;
+        document.getElementById('partoClinico').checked = false;
+      }
+    }
+
+    // FASE 1: máscara de CPF e atalhos da busca por documento no modal de Nova Internação.
+    document.getElementById('intCpf').addEventListener('input', function () { this.value = mascaraCpfPainel(this.value); });
+    document.getElementById('intBuscaTipo').addEventListener('change', function () { document.getElementById('intBuscaDoc').focus(); });
+    document.getElementById('intBuscaDoc').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); buscarDocumentoInternacao(); } });
+
+    document.getElementById('intTipoPaciente').addEventListener('change', () => {
+      alternarCamposPorSetor();
+      const ehAlcon = ['ALCON 1','ALCON 2'].includes(String(setorAtualParam).trim().toUpperCase());
+      if (!ehAlcon) return;
+      const tipo = document.getElementById('intTipoPaciente').value;
+      const select = document.getElementById('intLeito');
+      select.innerHTML = '';
+      globalDataLeitos.filter(l => l.Status === 'Livre' || (l.Status === 'Ocupado' && ((tipo === 'RN' && !l.idPacienteRN) || (tipo === 'MAE' && !l.idPacienteMae)))).forEach(l => {
+        select.innerHTML += `<option value="${l.ID_Leito}">${l.Numero_Leito}${l.Status === 'Ocupado' ? ' — completar binômio' : ''}</option>`;
+      });
+    });
+
+    function abrirNovaInternacaoGenerica() {
+      resetFormInternacao();
+      const ehAlcon = ['ALCON 1','ALCON 2'].includes(String(setorAtualParam).trim().toUpperCase());
+      const select = document.getElementById('intLeito');
+      select.innerHTML = '';
+      globalDataLeitos.filter(l => l.Status === 'Livre' || (ehAlcon && l.Status === 'Ocupado' && ((document.getElementById('intTipoPaciente').value === 'RN' && !l.idPacienteRN) || (document.getElementById('intTipoPaciente').value === 'MAE' && !l.idPacienteMae)))).forEach(l => {
+        select.innerHTML += `<option value="${l.ID_Leito}">${l.Numero_Leito}${l.Status === 'Ocupado' ? ' — completar binômio' : ''}</option>`;
+      });
+      alternarCamposPorSetor();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalInternacao')).show();
+    }
+
+    document.getElementById('formTrocaLeito').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const btn = e.submitter;
+      travarBotao(btn, 'Trocando Leito...');
+      const payload = {
+        idInternacao: document.getElementById('trocaIdInternacao').value,
+        novoLeitoId: document.getElementById('trocaNovoLeito').value,
+        usuario: "<?!= nomeUsuario ?>"
+      };
+      google.script.run.withSuccessHandler(() => {
+        bootstrap.Modal.getInstance(document.getElementById('modalTrocaLeito')).hide();
+        carregarDashboard();
+      }).withFailureHandler(err => liberarBotao(btn, 'Confirmar Troca', err))
+        .trocarLeito(payload);
+    });
+
+    function sair() {
+      limparCachePaineis();
+      google.script.run.encerrarSessao(token);
+      window.top.location.href = `${appUrl}?view=login`;
+    }
+
+    // Snapshot por sessão e setor, usado apenas para apresentação enquanto a
+    // leitura atualizada chega. Nunca autoriza ações ou substitui o servidor.
+    const NATUS_CACHE_PREFIXO = 'natus_painel_v5_';
+    let requisicaoPainel = 0;
+    let assinaturaPainel = '';
+    let painelPendente = null;
+    function chaveCachePainel(setor) {
+      return NATUS_CACHE_PREFIXO + String(token || '') + '_' + String(setor || '').toUpperCase();
+    }
+    function lerCachePainel(setor) {
+      try {
+        const item = JSON.parse(sessionStorage.getItem(chaveCachePainel(setor)) || 'null');
+        if (!item || Date.now() - item.em > 120000) return null;
+        return item.dados;
+      } catch (_) { return null; }
+    }
+    function salvarCachePainel(setor, dados) {
+      try { sessionStorage.setItem(chaveCachePainel(setor), JSON.stringify({em:Date.now(), dados})); }
+      catch (_) { /* O painel funciona também sem armazenamento disponível. */ }
+    }
+    function limparCachePaineis() {
+      try {
+        for (let i = sessionStorage.length - 1; i >= 0; i--) {
+          const k = sessionStorage.key(i);
+          if (k && k.startsWith(NATUS_CACHE_PREFIXO)) sessionStorage.removeItem(k);
+        }
+      } catch (_) {}
+    }
+    function statusAtualizacaoPainel(texto, erro) {
+      let el = document.getElementById('statusAtualizacaoPainel');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'statusAtualizacaoPainel';
+        el.setAttribute('role', 'status');
+        el.setAttribute('aria-live', 'polite');
+        const nav = document.querySelector('nav');
+        if (nav) nav.insertAdjacentElement('afterend', el);
+      }
+      el.className = 'container-fluid px-4 small mb-2 ' + (erro ? 'text-danger' : 'text-secondary');
+      el.textContent = texto || '';
+      if (erro) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-sm btn-outline-primary ms-2';
+        btn.textContent = 'Atualizar';
+        btn.onclick = () => carregarDashboard();
+        el.appendChild(btn);
+      }
+      el.hidden = !texto;
+    }
+    function mostrarPainelAtualizado(data) {
+      // Uma revalidação silenciosa não deve apagar campos de um formulário aberto.
+      if (document.querySelector('.modal.show')) { painelPendente = data; return; }
+      const assinatura = JSON.stringify(data);
+      if (assinatura === assinaturaPainel) return;
+      renderizarDashboard(data);
+      assinaturaPainel = assinatura;
+      painelPendente = null;
+    }
+    document.addEventListener('hidden.bs.modal', () => {
+      if (painelPendente && !document.querySelector('.modal.show')) mostrarPainelAtualizado(painelPendente);
+    });
+    function aplicarRespostaPainel(data, setorPedido, idPedido) {
+      // Validar ANTES de gravar no cache: respostas antigas não podem ressurgir ao voltar.
+      if (idPedido !== requisicaoPainel ||
+          String(setorPedido).toUpperCase() !== String(setorAtualParam).toUpperCase()) return;
+      if (!data || String(data.setorAtual).toUpperCase() !== String(setorPedido).toUpperCase()) return;
+      salvarCachePainel(setorPedido, data);
+      mostrarPainelAtualizado(data);
+      statusAtualizacaoPainel('');
+    }
+    function iniciarPainelComCache() {
+      painelPendente = null;
+      const dados = lerCachePainel(setorAtualParam);
+      if (dados) mostrarPainelAtualizado(dados);
+      carregarDashboard({navegacao:true, silencioso:!!dados});
+    }
+    function carregarDashboard(opcoes) {
+      const navegacao = !!(opcoes && opcoes.navegacao);
+      // Chamadas após ações invalidam também os snapshots do setor de destino.
+      if (!navegacao) limparCachePaineis();
+      painelPendente = null;
+      const setorPedido = String(setorAtualParam || '');
+      const idPedido = ++requisicaoPainel;
+      statusAtualizacaoPainel(opcoes && opcoes.silencioso ? '' : 'Atualizando leitos...');
+      // Não descarta leituras após ações quando já existe uma requisição pendente.
+      google.script.run
+        .withSuccessHandler(data => aplicarRespostaPainel(data, setorPedido, idPedido))
+        .withFailureHandler(err => {
+          if (idPedido !== requisicaoPainel) return;
+          console.error(err);
+          statusAtualizacaoPainel('Não foi possível atualizar os leitos. Os dados exibidos podem estar desatualizados. Use Atualizar.', true);
+        })
+        .getPainelOperacionalData(setorPedido);
+    }
+
+    function renderizarDashboard(data) {
+      const { setorAtual, listaSetores, leitos, resumo, internadosAtivos, pacientesSemLeito } = data;
+      globalDataLeitos = leitos;
+      if (window.natusAtualizarGraficos) natusAtualizarGraficos(data);
+      globalPacientesSemLeito = pacientesSemLeito || [];
+      // Une leitos ocupados + pacientes sem leito atribuído numa única lista, para que
+      // "Registrar Saída" funcione também para quem ainda não tem leito neste setor.
+      globalInternadosAtivos = internadosAtivos.concat(globalPacientesSemLeito.map(p => ({
+        idPaciente: p.idPaciente, idInternacao: p.idInternacao, nome: p.nome, numeroLeito: 'Sem leito atribuído'
+      })));
+      listaSetoresGlobal = listaSetores;
+
+      document.getElementById('tituloSetor').innerText = rotuloSetor(setorAtual);
+
+      const selectSetor = document.getElementById('seletorSetor');
+      selectSetor.innerHTML = '';
+      listaSetores.forEach(s => {
+        const sel = (s.toUpperCase() === setorAtual.toUpperCase()) ? 'selected' : '';
+        selectSetor.innerHTML += `<option value="${s}" ${sel}>${rotuloSetor(s)}</option>`;
+      });
+      // NIR e Gestão têm as mesmas autorizações (troca livre de setor); SAME/NIR-SAME são
+      // administrativos mas ficam restritos ao próprio setor cadastrado aqui no Painel.
+      const perfilTipoNIR = (perfilUsuario === 'NIR' || perfilUsuario === 'Gestão');
+      selectSetor.disabled = !perfilTipoNIR;
+      selectSetor.title = !perfilTipoNIR ? 'Seu perfil tem acesso apenas a este setor' : '';
+
+      const btnVoltarNIR = document.getElementById('btnVoltarNIR');
+      btnVoltarNIR.classList.toggle('d-none', !perfilTipoNIR);
+
+      // UEN: setor de leitos virtuais ("vaga zero") - não há "Nova Internação"/"Gerenciar
+      // Leitos" tradicionais (os leitos são criados/extintos automaticamente pelo servidor).
+      const ehUEN = String(setorAtual).trim().toUpperCase() === 'UEN';
+      document.getElementById('btnAdmitirPaciente').classList.toggle('d-none', ehUEN);
+      document.getElementById('btnAdmitirVagaZero').classList.toggle('d-none', !ehUEN);
+      document.getElementById('btnGerenciarLeitos').classList.toggle('d-none', ehUEN);
+      document.getElementById('filtrosStatusLeito').classList.toggle('d-none', ehUEN);
+      document.getElementById('kpiTaxaLabel').textContent = ehUEN ? 'Leitos Extras Ativos' : 'Taxa de Ocupação';
+
+      const boxSemLeito = document.getElementById('alertaSemLeito');
+      const listaSemLeitoEl = document.getElementById('listaSemLeito');
+      if (globalPacientesSemLeito.length) {
+        boxSemLeito.classList.remove('d-none');
+        listaSemLeitoEl.innerHTML = globalPacientesSemLeito.map(p => `
+          <div class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <strong>${p.nome}</strong>
+              <div class="small text-muted">Entrada: ${p.dataInternacao || '-'} · Origem: ${p.procedencia || '-'}</div>
+            </div>
+            <button type="button" class="btn btn-sm btn-primary fw-semibold" onclick="abrirAtribuirLeito('${p.idInternacao}', '${String(p.nome).replace(/'/g, "\\'")}')">
+              <i class="bi bi-house-add-fill me-1"></i> Atribuir Leito
+            </button>
+          </div>
+        `).join('');
+      } else {
+        boxSemLeito.classList.add('d-none');
+        listaSemLeitoEl.innerHTML = '';
+      }
+
+      // Atualização dos Indicadores
+      document.getElementById('kpi-taxa').innerText = ehUEN ? resumo.ocupados : `${resumo.taxaOcupacaoDiaria}%`;
+      document.getElementById('kpi-ocupados').innerText = `${resumo.ocupados}/${resumo.totalLeitos}`;
+      document.getElementById('kpi-internacoes-total').innerText = resumo.internacoesHoje;
+      document.getElementById('kpi-internacoes-internas').innerText = resumo.internacoesInternasHoje;
+      document.getElementById('kpi-internacoes-externas').innerText = resumo.internacoesExternasHoje;
+      document.getElementById('kpi-altas').innerText = resumo.altasHoje;
+      document.getElementById('kpi-obitos').innerText = resumo.obitosHoje;
+      const cardEvasoesHoje = document.getElementById('cardEvasoesHoje');
+      if (cardEvasoesHoje) {
+        const ehALCON = ['ALCON 1', 'ALCON 2'].indexOf(String(setorAtualParam || '').trim().toUpperCase()) !== -1;
+        cardEvasoesHoje.classList.toggle('d-none', !ehALCON);
+        document.getElementById('kpi-evasoes').innerText = resumo.evasoesHoje || 0;
+      }
+      document.getElementById('kpi-transf-total').innerText = resumo.transferenciasHoje;
+      document.getElementById('kpi-transf-internas').innerText = resumo.transferenciasInternasHoje;
+      document.getElementById('kpi-transf-externas').innerText = resumo.transferenciasExternasHoje;
+      const selectProcedencia = document.getElementById('intProcedencia');
+      const selectEditProcedencia = document.getElementById('editProcedencia');
+      selectProcedencia.innerHTML = '<option value="">Selecione...</option>';
+      selectEditProcedencia.innerHTML = '<option value="">Selecione...</option>';
+
+      OPCOES_ORIGEM_BASE.filter(o => o.toUpperCase() !== setorAtual.toUpperCase()).forEach(o => {
+        selectProcedencia.innerHTML += `<option value="${o}">${rotuloSetor(o)}</option>`;
+        selectEditProcedencia.innerHTML += `<option value="${o}">${rotuloSetor(o)}</option>`;
+      });
+
+      const selectProcOutro = document.getElementById('intProcedenciaOutro');
+      const selectEditProcOutro = document.getElementById('editProcedenciaOutro');
+      if (selectEditProcOutro) selectEditProcOutro.innerHTML = '<option value="">Selecione...</option>' + OPCOES_PROCEDENCIA_EXTERNA.map(o => `<option value="${o}">${o}</option>`).join('');
+      selectProcOutro.innerHTML = '<option value="">Selecione...</option>' +
+        OPCOES_PROCEDENCIA_EXTERNA.map(o => `<option value="${o}">${o}</option>`).join('');
+
+      atualizarOpcoesDestino();
+
+      const selectLeito = document.getElementById('intLeito');
+      const selectMovPac = document.getElementById('movPaciente');
+      const selectEditPac = document.getElementById('editSelectPaciente');
+
+      selectLeito.innerHTML = '';
+      selectMovPac.innerHTML = '';
+      selectEditPac.innerHTML = '<option value="">Selecione...</option>';
+
+      if (globalInternadosAtivos.length === 0) {
+        selectMovPac.innerHTML = `<option value="">Nenhum paciente internado</option>`;
+      } else {
+        globalInternadosAtivos.forEach(pac => {
+          selectMovPac.innerHTML += `<option value="${pac.idInternacao}">${pac.nome} (${pac.numeroLeito})</option>`;
+        });
+      }
+      // Edição de dados clínicos: no ALCON, Mãe e RN possuem internações independentes no mesmo leito.
+      globalInternadosAtivos.forEach(pac => {
+        selectEditPac.innerHTML += `<option value="${pac.idPaciente}">${pac.nome} (${pac.numeroLeito}${pac.tipoPaciente ? ' · '+pac.tipoPaciente : ''})</option>`;
+      });
+
+      function atualizarLeitoMovimentacao() {
+        const p = globalInternadosAtivos.find(x => String(x.idInternacao) === String(selectMovPac.value));
+        document.getElementById('movLeito').value = p ? p.numeroLeito : '';
+      }
+      selectMovPac.onchange = atualizarLeitoMovimentacao;
+      atualizarLeitoMovimentacao();
+
+      leitos.forEach(l => {
+        const ehAlconSetor = ['ALCON 1','ALCON 2'].includes(String(setorAtual).trim().toUpperCase());
+        const tipo = (document.getElementById('intTipoPaciente') || {}).value || 'RN';
+        const podeCompletar = ehAlconSetor && l.Status === 'Ocupado' && ((tipo === 'RN' && !l.idPacienteRN) || (tipo === 'MAE' && !l.idPacienteMae));
+        if (l.Status === 'Livre' || podeCompletar) selectLeito.innerHTML += `<option value="${l.ID_Leito}">${l.Numero_Leito}${podeCompletar ? ' — completar binômio' : ''}</option>`;
+      });
+
+      const listaGerencial = document.getElementById('listaGerencialLeitos');
+      listaGerencial.innerHTML = '';
+      leitos.forEach(l => {
+        listaGerencial.innerHTML += `
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <span><strong>${l.Numero_Leito}</strong> (${l.Status})</span>
+            ${l.Status !== 'Ocupado' ? `<button class="btn btn-sm btn-outline-danger" onclick="excluirLeito('${l.ID_Leito}')"><i class="bi bi-trash"></i></button>` : '<span class="badge bg-secondary">Ocupado</span>'}
+          </li>
+        `;
+      });
+
+      filtrarEBuscar();
+    }
+
+    function atualizarOpcoesDestino() {
+      const tipo = document.getElementById('movTipo').value;
+      const selectDestino = document.getElementById('movDestino');
+      const wrapMunicipio = document.getElementById('movMunicipioWrap');
+      const selectMunicipio = document.getElementById('movMunicipio');
+      const wrapLeitoDestino = document.getElementById('movLeitoDestinoWrap');
+      const selectLeitoDestino = document.getElementById('movLeitoDestino');
+      const avisoSemLeito = document.getElementById('movAvisoSetorSemLeito');
+      const wrapPeso = document.getElementById('movPesoSaidaWrap');
+      const inputPeso = document.getElementById('movPesoSaida');
+      const wrapAleitamento = document.getElementById('movAleitamentoWrap');
+      const wrapEtapa = document.getElementById('movEtapaCanguruWrap');
+      selectDestino.innerHTML = '';
+      const setorALCON = ['ALCON 1', 'ALCON 2'].indexOf(String(setorAtualParam || '').trim().toUpperCase()) !== -1;
+      const opcaoEvasao = document.querySelector('#movTipo option[value="Evasao"]');
+      if (opcaoEvasao) opcaoEvasao.classList.toggle('d-none', !setorALCON);
+      if (wrapMunicipio) { wrapMunicipio.classList.add('d-none'); selectMunicipio.required = false; selectMunicipio.value = ''; }
+      if (wrapLeitoDestino) { wrapLeitoDestino.classList.add('d-none'); selectLeitoDestino.required = false; selectLeitoDestino.innerHTML = ''; }
+      if (avisoSemLeito) { avisoSemLeito.classList.add('d-none'); }
+      if (wrapPeso) { wrapPeso.classList.add('d-none'); inputPeso.required = false; }
+      if (wrapAleitamento) { wrapAleitamento.classList.add('d-none'); }
+      if (wrapEtapa) { wrapEtapa.classList.add('d-none'); }
+
+      // Peso do RN na saída: disponível para Alta em qualquer setor; obrigatório só na UCINCA.
+      // Aleitamento Exclusivo: dado complementar opcional de Alta em qualquer setor.
+      // Etapa do Método Canguru: exclusiva da UCINCA (V15) - não aparece nos demais setores.
+      if (tipo === 'Alta') {
+        const setorSaida = String(setorAtualParam).trim().toUpperCase();
+        const semPeso = setorSaida === 'UTI MATERNA';
+        if (wrapPeso) {
+          wrapPeso.classList.toggle('d-none', semPeso);
+          inputPeso.required = !semPeso && setorSaida === 'UCINCA';
+          if (semPeso) inputPeso.value = '';
+        }
+        if (wrapAleitamento) wrapAleitamento.classList.remove('d-none');
+        if (wrapEtapa) wrapEtapa.classList.toggle('d-none', setorSaida !== 'UCINCA');
+      }
+
+      if (tipo === 'Alta') {
+        selectDestino.innerHTML = `<option value="DOMICILIAR (CAPITAL)">Domiciliar (Capital)</option><option value="OUTRO MUNICÍPIO">Outro Município</option>`;
+        if (selectMunicipio) {
+          selectMunicipio.innerHTML = '<option value="">Selecione o Município...</option>' + OPCOES_MUNICIPIOS.map(o => `<option value="${o}">${o}</option>`).join('');
+        }
+        selectDestino.onchange = atualizarMunicipioAlta;
+      } else if (tipo === 'Obito' || tipo === 'Evasao') {
+        selectDestino.innerHTML = '<option value="NÃO APLICÁVEL">NÃO APLICÁVEL</option>';
+        selectDestino.onchange = null;
+      } else {
+        OPCOES_DESTINO_BASE.filter(d => d.toUpperCase() !== setorAtualParam.toUpperCase()).forEach(d => {
+          const rotulo = String(d).trim().toUpperCase() === 'UEN' ? 'Leito Extra CCO Neonatal' : d;
+          selectDestino.innerHTML += `<option value="${d}">${rotulo}</option>`;
+        });
+        selectDestino.onchange = atualizarLeitosDestinoTransferencia;
+        atualizarLeitosDestinoTransferencia();
+      }
+    }
+
+    function atualizarLeitosDestinoTransferencia() {
+      const tipo = document.getElementById('movTipo').value;
+      const destino = document.getElementById('movDestino').value;
+      const wrap = document.getElementById('movLeitoDestinoWrap');
+      const select = document.getElementById('movLeitoDestino');
+      const avisoSemLeito = document.getElementById('movAvisoSetorSemLeito');
+      if (!wrap || !select) return;
+      if (avisoSemLeito) avisoSemLeito.classList.add('d-none');
+
+      if (tipo === 'Transferencia' && String(destino).trim().toUpperCase() === 'UEN') {
+        wrap.classList.add('d-none');
+        select.required = false;
+        select.innerHTML = '';
+        return;
+      }
+
+      const ehSetorInterno = OPCOES_SETORES_INTERNOS.some(s => String(s).toUpperCase() === String(destino).toUpperCase());
+      if (tipo !== 'Transferencia' || !ehSetorInterno) {
+        wrap.classList.add('d-none'); select.required = false; select.innerHTML = ''; return;
+      }
+      select.innerHTML = '<option value="">Consultando leitos disponíveis...</option>';
+      select.required = true; wrap.classList.remove('d-none');
+
+      const ativoMov = globalInternadosAtivos.find(x => String(x.idInternacao) === String(document.getElementById('movPaciente').value));
+      const setorOrigemNorm = String(setorAtualParam).trim().toUpperCase();
+      const tipoPacienteTransferencia = ativoMov && ativoMov.tipoPaciente
+        ? String(ativoMov.tipoPaciente).trim().toUpperCase().replace('MÃE','MAE')
+        : (setorOrigemNorm === 'UTI MATERNA' ? 'MAE' : 'RN');
+
+      google.script.run.withSuccessHandler(info => {
+        const totalLeitos = info ? info.totalLeitos : 0;
+        const livres = (info && info.livres) || [];
+        const complementares = (info && info.complementares) || [];
+
+        if (totalLeitos === 0) {
+          wrap.classList.add('d-none');
+          select.required = false;
+          select.innerHTML = '';
+          if (avisoSemLeito) avisoSemLeito.classList.remove('d-none');
+          return;
+        }
+
+        if (!livres.length && !complementares.length) {
+          select.innerHTML = '<option value="">Nenhum leito compatível disponível neste setor</option>';
+          select.required = true;
+          return;
+        }
+        const optsLivres = livres.map(l => `<option value="${l.ID_Leito}">${l.Numero_Leito} — LIVRE</option>`).join('');
+        const optsComp = complementares.map(l => `<option value="${l.ID_Leito}">${l.Numero_Leito} — OCUPADO (Alojamento Conjunto) · adicionar ${tipoPacienteTransferencia === 'MAE' ? 'Mãe' : 'RN'}</option>`).join('');
+        select.innerHTML = '<option value="">Selecione o leito...</option>' + optsLivres + optsComp;
+      }).withFailureHandler(err => {
+        select.innerHTML = '<option value="">Erro ao consultar leitos</option>';
+        alert(err && err.message ? err.message : 'Não foi possível consultar os leitos do setor de destino.');
+      }).obterInfoLeitosSetorDestino(destino, tipoPacienteTransferencia);
+    }
+
+    function atualizarMunicipioAlta() {
+      const destino = document.getElementById('movDestino').value;
+      const wrap = document.getElementById('movMunicipioWrap');
+      const select = document.getElementById('movMunicipio');
+      const ativo = destino === 'OUTRO MUNICÍPIO';
+      if (!wrap || !select) return;
+      wrap.classList.toggle('d-none', !ativo);
+      select.required = ativo;
+      if (!ativo) select.value = '';
+    }
+
+    function atualizarProcedencia() {
+      const base = document.getElementById('intProcedencia').value;
+      const wrap = document.getElementById('intProcedenciaOutroWrap');
+      const outro = document.getElementById('intProcedenciaOutro');
+      const ativo = base === 'OUTRO HOSPITAL';
+      wrap.classList.toggle('d-none', !ativo);
+      outro.required = ativo;
+      if (!ativo) outro.value = '';
+    }
+
+    document.getElementById('intProcedencia').addEventListener('change', atualizarProcedencia);
+    document.getElementById('editProcedencia').addEventListener('change', function () {
+      const outro = this.value === 'OUTRO HOSPITAL';
+      const wrap = document.getElementById('editProcedenciaOutroWrap');
+      wrap.classList.toggle('d-none', !outro);
+      document.getElementById('editProcedenciaOutro').required = outro;
+    });
+
+    function abrirNovaInternacaoNoLeito(leitoId, tipoAlcon) {
+      const leito = globalDataLeitos.find(l => String(l.ID_Leito) === String(leitoId));
+      const ehALCON = ['ALCON 1', 'ALCON 2'].indexOf(String(setorAtualParam || '').trim().toUpperCase()) !== -1;
+      const status = String(leito && leito.Status || '').trim().toUpperCase();
+      const ocupado = status === 'OCUPADO';
+      if (!leito || (!ocupado && status !== 'LIVRE') || (ocupado && !ehALCON)) return;
+      if (ehALCON && ocupado && leito.idPacienteMae && leito.idPacienteRN) return;
+
+      resetFormInternacao();
+      const modalEl = document.getElementById('modalInternacao');
+      document.getElementById('intLeito').innerHTML = `<option value="${leito.ID_Leito}">${leito.Numero_Leito}${ocupado ? ' — Alojamento Conjunto' : ''}</option>`;
+      document.getElementById('intLeito').value = leito.ID_Leito;
+      document.getElementById('intData').value = dataLocalISO();
+      document.getElementById('intHora').value = new Date().toTimeString().split(' ')[0].substring(0, 5);
+      if (ehALCON) {
+        const tipo = tipoAlcon || (leito.idPacienteMae ? 'RN' : (leito.idPacienteRN ? 'MAE' : 'RN'));
+        if ((tipo === 'MAE' && leito.idPacienteMae) || (tipo === 'RN' && leito.idPacienteRN)) return;
+        document.getElementById('intTipoPaciente').value = tipo;
+        alternarCamposPorSetor();
+      }
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }
+
+    // Rede de segurança: independentemente de como o modal foi aberto ou fechado (Cancelar, X,
+    // Esc, ou fechamento automático após salvar com sucesso), o formulário e o botão de
+    // confirmação NUNCA ficam com dados/estado da internação anterior na próxima abertura.
+    document.getElementById('modalInternacao').addEventListener('hidden.bs.modal', resetFormInternacao);
+
+    function abrirAlterarStatusLeito(leitoId) {
+      const leito = globalDataLeitos.find(l => String(l.ID_Leito) === String(leitoId));
+      if (!leito || String(leito.Status).trim().toUpperCase() === 'OCUPADO') return;
+
+      const atual = String(leito.Status || 'Livre').trim();
+      const statusPadrao = atual.toUpperCase() === 'RESERVA' ? 'Reservado' : atual;
+      document.getElementById('statusLeitoId').value = leito.ID_Leito;
+      document.getElementById('statusLeitoNumero').value = leito.Numero_Leito || '';
+      document.getElementById('statusLeitoNovo').value = ['Livre', 'Reservado', 'Bloqueado'].includes(statusPadrao) ? statusPadrao : 'Livre';
+
+      const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAlterarStatusLeito'));
+      modal.show();
+    }
+
+    function resetBotaoRegistrarSaida() {
+      const btn = document.querySelector('#formMovimentacao button[type="submit"]');
+      if (!btn) return;
+      btn.disabled = false;
+      btn.innerHTML = 'Confirmar Registro';
+      delete btn.dataset.textoOriginal;
+    }
+
+    function abrirRegistrarSaida(idInternacao) {
+      const paciente = globalInternadosAtivos.find(p => String(p.idInternacao) === String(idInternacao));
+      if (!paciente) return;
+      resetBotaoRegistrarSaida();
+      document.getElementById('movPaciente').value = idInternacao;
+      document.getElementById('movLeito').value = paciente.numeroLeito || '';
+      document.getElementById('movData').value = dataLocalISO();
+      document.getElementById('movHora').value = new Date().toTimeString().split(' ')[0].substring(0, 5);
+      document.getElementById('movTipo').value = 'Alta';
+      document.getElementById('movObs').value = '';
+      document.getElementById('movPesoSaida').value = '';
+      document.getElementById('movEtapaCanguru').value = '';
+      const radiosAleitamento = document.querySelectorAll('input[name="movAleitamento"]');
+      radiosAleitamento.forEach(r => r.checked = false);
+      atualizarOpcoesDestino();
+      const off = bootstrap.Offcanvas.getInstance(document.getElementById('offcanvasPaciente'));
+      if (off) off.hide();
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalMovimentacao')).show();
+    }
+
+    function abrirTrocaLeito(idInternacao) {
+      const leitoAtual = globalDataLeitos.find(l => String(l.idInternacao) === String(idInternacao));
+      if (!leitoAtual) {
+        alert('Não foi possível localizar o leito atual do paciente. Atualize a tela e tente novamente.');
+        return;
+      }
+
+      const opcoes = globalDataLeitos.filter(l =>
+        String(l.Status || '').trim().toUpperCase() === 'LIVRE' &&
+        String(l.ID_Leito) !== String(leitoAtual.ID_Leito)
+      );
+
+      if (!opcoes.length) {
+        alert('Não há leitos livres disponíveis neste setor para troca.');
+        return;
+      }
+
+      document.getElementById('trocaIdInternacao').value = idInternacao;
+      document.getElementById('trocaPaciente').value = leitoAtual.pacienteNome || '';
+      document.getElementById('trocaNovoLeito').innerHTML = opcoes.map(l =>
+        `<option value="${l.ID_Leito}">${l.Numero_Leito}</option>`).join('');
+
+      // Fecha o painel lateral antes de abrir o modal, evitando que o Offcanvas
+      // fique sobreposto ao modal e capture os cliques.
+      const offcanvasElement = document.getElementById('offcanvasPaciente');
+      const off = bootstrap.Offcanvas.getInstance(offcanvasElement);
+      if (off) off.hide();
+
+      setTimeout(() => {
+        const modalEl = document.getElementById('modalTrocaLeito');
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+      }, 150);
+    }
+
+    function abrirAtribuirLeito(idInternacao, nome) {
+      const opcoes = globalDataLeitos.filter(l => String(l.Status || '').trim().toUpperCase() === 'LIVRE');
+      if (!opcoes.length) {
+        alert('Ainda não há leitos livres cadastrados neste setor. Cadastre leitos em "Gerenciar Leitos" antes de atribuir.');
+        return;
+      }
+
+      document.getElementById('trocaIdInternacao').value = idInternacao;
+      document.getElementById('trocaPaciente').value = nome || '';
+      document.getElementById('trocaNovoLeito').innerHTML = opcoes.map(l =>
+        `<option value="${l.ID_Leito}">${l.Numero_Leito}</option>`).join('');
+
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalTrocaLeito')).show();
+    }
+
+    // Calcula quantas horas se passaram desde a entrada (string "dd/MM/yyyy HH:mm" vinda do
+    // servidor) até agora - usado para colorir os cards de ocupação da UEN por criticidade.
+    function calcularHorasAguardando(dataHoraStr) {
+      if (!dataHoraStr) return 0;
+      const [dataParte, horaParte] = String(dataHoraStr).split(' ');
+      if (!dataParte) return 0;
+      const [dia, mes, ano] = dataParte.split('/').map(Number);
+      const [hh, mm] = (horaParte || '00:00').split(':').map(Number);
+      const dt = new Date(ano, (mes || 1) - 1, dia || 1, hh || 0, mm || 0);
+      if (isNaN(dt.getTime())) return 0;
+      return Math.max(0, Math.floor((Date.now() - dt.getTime()) / 3600000));
+    }
+
+    // Painel de Ocupação Atual da UEN: cards coloridos por criticidade (tempo de espera de
+    // vaga na UTIN), mostrando gravidade e horário de entrada. Todo leito da UEN está sempre
+    // Ocupado (leitos livres nunca ficam visíveis: são criados já ocupados e extintos na saída),
+    // então não há filtros de status aqui - apenas a busca por nome/leito.
+    function menuAcoesLeito(leito, opcoes = {}) {
+      const idLeito = leito.ID_Leito;
+      const idPaciente = leito.idPaciente || leito.ID_Paciente_Atual || '';
+      const idInternacao = leito.idInternacao || leito.ID_Internacao || '';
+      const exameAtivo = leito.Exame_Externo === 'Sim';
+      const incluirEdicao = opcoes.incluirEdicao !== false && idPaciente;
+      const incluirTrocaSaida = opcoes.incluirTrocaSaida !== false && idInternacao;
+      return `
+        <div class="dropdown dropup acoes-dropdown" onclick="event.stopPropagation();">
+          <button type="button" class="btn btn-sm btn-primary fw-semibold dropdown-toggle" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false" onclick="event.stopPropagation();">
+            <i class="bi bi-list-check me-1"></i>Ações
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end shadow">
+            ${incluirEdicao ? `<li><a class="dropdown-item" href="#" onclick="event.preventDefault(); event.stopPropagation(); preencherEAbrirEdicao('${idPaciente}')"><i class="bi bi-pencil-square me-2 text-warning"></i>Editar Dados da Internação</a></li>` : ''}
+            <li><a class="dropdown-item" href="#" onclick="event.preventDefault(); event.stopPropagation(); abrirIndicadoresLeito('${idLeito}')"><i class="bi bi-heart-pulse-fill me-2 text-info"></i>Indicadores de Qualidade / Método Canguru</a></li>
+            <li><a class="dropdown-item ${exameAtivo ? 'fw-bold text-warning' : ''}" href="#" onclick="event.preventDefault(); event.stopPropagation(); alternarExameExterno('${idLeito}', ${!exameAtivo})"><i class="bi bi-clipboard2-pulse me-2 text-warning"></i>${exameAtivo ? 'Marcar retorno do exame externo' : 'Paciente saiu para Exame Externo'}</a></li>
+            ${incluirTrocaSaida ? `<li><hr class="dropdown-divider"></li><li><a class="dropdown-item" href="#" onclick="event.preventDefault(); event.stopPropagation(); abrirTrocaLeito('${idInternacao}')"><i class="bi bi-arrow-left-right me-2 text-primary"></i>Trocar Leito</a></li><li><a class="dropdown-item text-danger" href="#" onclick="event.preventDefault(); event.stopPropagation(); abrirRegistrarSaida('${idInternacao}')"><i class="bi bi-box-arrow-right me-2"></i>Registrar Saída</a></li>` : ''}
+          </ul>
+        </div>`;
+    }
+
+    function renderizarGridUEN() {
+      const grid = document.getElementById('grid-leitos');
+      const texto = document.getElementById('inputBusca').value.toLowerCase().trim();
+      grid.innerHTML = '';
+
+      if (!globalDataLeitos.length) {
+        grid.innerHTML = '<div class="col-12"><div class="alert alert-light border text-center text-muted">Nenhum Leito Extra CCO Neonatal ativo no momento.</div></div>';
+        return;
+      }
+
+      globalDataLeitos.slice().sort((a, b) => calcularHorasAguardando(b.dataHoraInternacaoCompleta) - calcularHorasAguardando(a.dataHoraInternacaoCompleta)).forEach(leito => {
+        const nome = (leito.pacienteNome || '').toLowerCase();
+        const num = (leito.Numero_Leito || '').toLowerCase();
+        if (texto && !nome.includes(texto) && !num.includes(texto)) return;
+
+        const horas = calcularHorasAguardando(leito.dataHoraInternacaoCompleta);
+        const nivel = horas >= 48 ? 'danger' : (horas >= 24 ? 'warning' : 'info');
+        const gravidade = leito.gravidade || 'Não informada';
+        const gravCor = gravidade === 'Grave' ? 'danger' : (gravidade === 'Moderada' ? 'warning' : 'success');
+
+        grid.innerHTML += `
+          <div class="col-md-3">
+            <div class="card bed-card border-${nivel} border-2 p-3 shadow-sm" onclick="abrirOffcanvasDetalhes('${leito.ID_Leito}')">
+              <div class="d-flex justify-content-between align-items-center">
+                <h5 class="fw-bold mb-0">${leito.Numero_Leito}</h5>
+                <span class="badge bg-${nivel}"><i class="bi bi-clock-history me-1"></i>${horas}h</span>
+              </div>
+              <div class="mt-2">
+                <strong class="d-block text-truncate"><i class="bi bi-person me-1"></i>${leito.pacienteNome}</strong>
+                <div class="small mt-1"><span class="badge bg-${gravCor}">${gravidade}</span></div>
+                <div class="small text-muted mt-1"><i class="bi bi-calendar3 me-1"></i>Entrada: ${leito.dataHoraInternacaoCompleta || '-'}</div>
+                ${leito.Exame_Externo === 'Sim' ? '<div class="alert alert-warning py-1 px-2 mt-2 mb-0 small fw-bold">PACIENTE EM EXAME EXTERNO</div>' : ''}
+              </div>
+              <div class="d-flex justify-content-end mt-2">
+                ${menuAcoesLeito(leito, { incluirTrocaSaida: false })}
+              </div>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    // Abre o modal de admissão "Vaga Zero" da UEN (sem seleção de leito - o servidor cria o
+    // próximo leito virtual automaticamente, ex.: LT Extra-04).
+    function abrirAdmitirUEN() {
+      const form = document.getElementById('formAdmitirUEN');
+      form.reset();
+      document.getElementById('uenDataEntrada').value = dataLocalISO();
+      document.getElementById('uenHoraEntrada').value = new Date().toTimeString().split(' ')[0].substring(0, 5);
+      document.getElementById('uenProcedenciaOutroWrap').classList.add('d-none');
+      document.getElementById('uenIG').value = '';
+
+      const selectProc = document.getElementById('uenProcedencia');
+      selectProc.innerHTML = '<option value="">Selecione...</option>' +
+        OPCOES_ORIGEM_BASE.filter(o => o !== 'UEN').map(o => `<option value="${o}">${rotuloSetor(o)}</option>`).join('');
+      document.getElementById('uenProcedenciaOutro').innerHTML = '<option value="">Selecione...</option>' +
+        OPCOES_PROCEDENCIA_EXTERNA.map(o => `<option value="${o}">${o}</option>`).join('');
+
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAdmitirUEN')).show();
+    }
+
+    document.getElementById('uenProcedencia').addEventListener('change', function () {
+      const ativo = this.value === 'OUTRO HOSPITAL';
+      document.getElementById('uenProcedenciaOutroWrap').classList.toggle('d-none', !ativo);
+      document.getElementById('uenProcedenciaOutro').required = ativo;
+    });
+
+    document.getElementById('formAdmitirUEN').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const payload = {
+        nome: document.getElementById('uenNome').value,
+        numeroProntuario: document.getElementById('uenProntuario').value,
+        dataNascimento: document.getElementById('uenDataNasc').value,
+        horaNascimento: document.getElementById('uenHoraNasc').value,
+        sexo: document.getElementById('uenSexo').value,
+        procedencia: document.getElementById('uenProcedencia').value === 'OUTRO HOSPITAL'
+          ? `OUTRO HOSPITAL - ${document.getElementById('uenProcedenciaOutro').value}`
+          : document.getElementById('uenProcedencia').value,
+        pesoNascer: document.querySelector('input[name="uenPeso"]:checked').value,
+        gravidade: document.querySelector('input[name="uenGravidade"]:checked').value,
+        ig: document.getElementById('uenIG').value,
+        data: document.getElementById('uenDataEntrada').value,
+        hora: document.getElementById('uenHoraEntrada').value,
+        usuario: "<?!= nomeUsuario ?>"
+      };
+
+      const btn = e.submitter;
+      travarBotao(btn, 'Admitindo...');
+      google.script.run.withSuccessHandler(() => {
+        bootstrap.Modal.getInstance(document.getElementById('modalAdmitirUEN')).hide();
+        carregarDashboard();
+      }).withFailureHandler(err => liberarBotao(btn, 'Confirmar Admissão Vaga Zero', err))
+        .admitirVagaZeroUEN(payload);
+    });
+
+    // Reseta o formulário/botão sempre que o modal é fechado (Cancelar, X, Esc ou após salvar
+    // com sucesso), para nunca herdar dados/estado de uma admissão anterior.
+    document.getElementById('modalAdmitirUEN').addEventListener('hidden.bs.modal', () => {
+      resetBotaoModal('#formAdmitirUEN button[type="submit"]', 'Confirmar Admissão Vaga Zero');
+    });
+
+    function filtrarEBuscar() {
+      if (String(setorAtualParam).trim().toUpperCase() === 'UEN') { renderizarGridUEN(); return; }
+      const texto = document.getElementById('inputBusca').value.toLowerCase().trim();
+      const chkLivre = document.getElementById('chkLivre').checked;
+      const chkOcupado = document.getElementById('chkOcupado').checked;
+      const chkReserva = document.getElementById('chkReserva').checked;
+      const chkBloqueado = document.getElementById('chkBloqueado').checked;
+
+      const grid = document.getElementById('grid-leitos');
+      grid.innerHTML = '';
+
+      globalDataLeitos.forEach(leito => {
+        if (leito.Status === 'Livre' && !chkLivre) return;
+        if (leito.Status === 'Ocupado' && !chkOcupado) return;
+        if ((leito.Status === 'Reserva' || leito.Status === 'Reservado') && !chkReserva) return;
+        if (leito.Status === 'Bloqueado' && !chkBloqueado) return;
+
+        const nome = (leito.pacienteNome || '').toLowerCase();
+        const nomesAlcon = [leito.nomeMae || '', leito.nomeRN || ''].join(' ').toLowerCase();
+        const num = (leito.Numero_Leito || '').toLowerCase();
+        const coincide = !texto || nome.includes(texto) || nomesAlcon.includes(texto) || num.includes(texto);
+        if (!coincide) return;
+
+        const icon = leito.Status === 'Livre' ? 'bi-check-circle-fill' : 
+                     leito.Status === 'Ocupado' ? 'bi-person-fill' : 
+                     (leito.Status === 'Reserva' || leito.Status === 'Reservado') ? 'bi-clock-fill' : 'bi-slash-circle-fill';
+
+        let detalhe = '';
+        const ehALCONCard = ['ALCON 1', 'ALCON 2'].indexOf(String(setorAtualParam || '').trim().toUpperCase()) !== -1;
+        if (leito.Status === 'Ocupado') {
+          if (ehALCONCard) {
+            const podeAdmitirMae = !leito.idPacienteMae;
+            const podeAdmitirRN = !leito.idPacienteRN;
+            detalhe = `
+              <div class="mt-2 pt-2 border-top border-danger-subtle">
+                <strong class="d-block text-truncate"><i class="bi bi-person-heart me-1"></i>Mãe: ${leito.nomeMae || '—'}</strong>
+                <strong class="d-block text-truncate mt-1"><i class="bi bi-person-fill me-1"></i>RN: ${leito.nomeRN || '—'}</strong>
+                <div class="d-flex justify-content-between align-items-center mt-1">
+                  <small class="opacity-75"><i class="bi bi-calendar3 me-1"></i>Int: ${leito.dataInternacao || '-'}</small>
+                  <span class="badge bg-danger">${leito.diasInternado} ${leito.diasInternado === 1 ? 'dia' : 'dias'}</span>
+                </div>
+                ${leito.Exame_Externo === 'Sim' ? '<div class="alert alert-warning py-1 px-2 mt-2 mb-0 small fw-bold"><i class="bi bi-clipboard2-pulse me-1"></i> PACIENTE EM EXAME EXTERNO</div>' : ''}
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                  ${podeAdmitirMae ? `<button type="button" class="btn btn-sm btn-success fw-semibold" onclick="event.stopPropagation(); abrirNovaInternacaoNoLeito('${leito.ID_Leito}', 'MAE')"><i class="bi bi-person-plus-fill me-1"></i>Admitir Mãe</button>` : ''}
+                  ${podeAdmitirRN ? `<button type="button" class="btn btn-sm btn-primary fw-semibold" onclick="event.stopPropagation(); abrirNovaInternacaoNoLeito('${leito.ID_Leito}', 'RN')"><i class="bi bi-person-plus-fill me-1"></i>Admitir RN</button>` : ''}
+                  <div class="ms-auto">${menuAcoesLeito(leito)}</div>
+                </div>
+              </div>
+            `;
+          } else {
+            detalhe = `
+              <div class="mt-2 pt-2 border-top border-danger-subtle">
+                <strong class="d-block text-truncate"><i class="bi bi-person me-1"></i>${leito.pacienteNome}</strong>
+                <div class="d-flex justify-content-between align-items-center mt-1">
+                  <small class="opacity-75"><i class="bi bi-calendar3 me-1"></i>Int: ${leito.dataInternacao || '-'}</small>
+                  <span class="badge bg-danger">${leito.diasInternado} ${leito.diasInternado === 1 ? 'dia' : 'dias'}</span>
+                </div>
+                ${leito.Exame_Externo === 'Sim' ? '<div class="alert alert-warning py-1 px-2 mt-2 mb-0 small fw-bold"><i class="bi bi-clipboard2-pulse me-1"></i> PACIENTE EM EXAME EXTERNO</div>' : ''}
+                <div class="d-flex justify-content-end align-items-center mt-2">${menuAcoesLeito(leito)}</div>
+              </div>
+            `;
+          }
+        }
+
+        const menuStatus = leito.Status === 'Ocupado' ? '' : `
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="#" onclick="event.stopPropagation(); mudarStatus('${leito.ID_Leito}', 'Livre')">🟢 Livre</a></li>
+            <li><a class="dropdown-item" href="#" onclick="event.stopPropagation(); mudarStatus('${leito.ID_Leito}', 'Reservado')">🟡 Reserva</a></li>
+            <li><a class="dropdown-item" href="#" onclick="event.stopPropagation(); mudarStatus('${leito.ID_Leito}', 'Bloqueado')">⚫ Bloqueado</a></li>
+          </ul>
+        `;
+
+        grid.innerHTML += `
+          <div class="col-md-3">
+            <div class="card bed-card status-${leito.Status} p-3 shadow-sm border-2 ${texto && coincide ? 'card-highlight' : ''}" onclick="abrirOffcanvasDetalhes('${leito.ID_Leito}')">
+              <div class="d-flex justify-content-between align-items-center">
+                <h5 class="fw-bold mb-0">${leito.Numero_Leito}</h5>
+                <i class="bi ${icon} fs-4"></i>
+              </div>
+              <div class="d-flex justify-content-between align-items-center mt-2">
+                <span class="fw-semibold">Status: ${leito.Status}</span>
+                ${leito.Status !== 'Ocupado' ? `
+                  <div class="d-flex gap-1" onclick="event.stopPropagation();">
+                    ${leito.Status === 'Livre' ? `<button type="button" class="btn btn-sm btn-success fw-semibold" onclick="event.stopPropagation(); abrirNovaInternacaoNoLeito('${leito.ID_Leito}')"><i class="bi bi-person-plus-fill me-1"></i>Admitir aqui</button>` : ''}
+                    <button type="button" class="btn btn-sm btn-outline-secondary fw-semibold" onclick="event.stopPropagation(); abrirAlterarStatusLeito('${leito.ID_Leito}')"><i class="bi bi-sliders me-1"></i>Alterar Status</button>
+                  </div>` : ''}
+              </div>
+              ${detalhe}
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    function abrirOffcanvasDetalhes(leitoId) {
+      const leito = globalDataLeitos.find(l => String(l.ID_Leito) === String(leitoId));
+      if (!leito || leito.Status !== 'Ocupado') return;
+
+      const body = document.getElementById('offcanvasBody');
+      body.innerHTML = `
+        <div class="card border-0 bg-light p-3 mb-3 shadow-sm">
+          <h6 class="text-muted mb-1">Paciente</h6>
+          ${['ALCON 1','ALCON 2'].includes(String(setorAtualParam).trim().toUpperCase()) ? `<div class="fw-bold text-dark">Mãe: ${leito.nomeMae || '—'}</div><div class="fw-bold text-dark mt-1">RN: ${leito.nomeRN || '—'}</div>` : `<h5 class="fw-bold text-dark">${leito.pacienteNome}</h5>`}
+        </div>
+        <ul class="list-group list-group-flush mb-3">
+          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Leito:</span><span class="fw-bold">${leito.Numero_Leito}</span></li>
+          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Nº Prontuário</span><span>${leito.numeroProntuario || '-'}</span></li>
+          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Data de Nascimento:</span><span>${leito.dataNascimento || '-'}</span></li>
+          ${!(String(setorAtualParam).toUpperCase() === 'UTI MATERNA') ? `<li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Hora Nasc.:</span><span>${leito.horaNascimento || '-'}</span></li>` : ''}
+          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">IG:</span><span>${leito.ig || '-'}</span></li>
+          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Sexo:</span><span>${leito.sexo === 'F' ? 'Feminino' : 'Masculino'}</span></li>
+          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Internação:</span><span>${leito.dataInternacao || '-'}</span></li>
+          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Procedência:</span><span>${leito.procedencia || '-'}</span></li>
+          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Parto:</span><span>${leito.tipoParto || '-'}</span></li>
+          ${String(setorAtualParam).toUpperCase() !== 'UTI MATERNA' ? `<li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Peso ao Nascer:</span><span>${leito.pesoNascer || '-'}</span></li>` : ''}
+          <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center"><span class="fw-semibold text-muted">Dias Internado:</span><span class="badge bg-danger fs-6">${leito.diasInternado} ${leito.diasInternado === 1 ? 'dia' : 'dias'}</span></li>
+        </ul>
+
+        <div class="border-top pt-3 mt-3">
+          <div class="d-flex flex-wrap gap-2">
+            <button type="button" class="btn btn-sm btn-warning fw-semibold" onclick="event.stopPropagation(); preencherEAbrirEdicao('${leito.idPaciente || leito.ID_Paciente_Atual || ''}')">
+              <i class="bi bi-pencil-square me-1"></i>Editar Dados
+            </button>
+            <button type="button" class="btn btn-sm btn-info text-white fw-semibold" onclick="event.stopPropagation(); abrirIndicadoresLeito('${leito.ID_Leito}')">
+              <i class="bi bi-heart-pulse-fill me-1"></i>Indicadores de Qualidade / Método Canguru
+            </button>
+            <button type="button" class="btn btn-sm ${leito.Exame_Externo === 'Sim' ? 'btn-warning' : 'btn-outline-warning'} fw-semibold" onclick="event.stopPropagation(); alternarExameExterno('${leito.ID_Leito}', ${leito.Exame_Externo !== 'Sim'})">
+              <i class="bi bi-clipboard2-pulse me-1"></i>${leito.Exame_Externo === 'Sim' ? 'Marcar retorno do exame' : 'Exame Externo'}
+            </button>
+            ${leito.idInternacao ? `
+            <button type="button" class="btn btn-sm btn-outline-primary fw-semibold" onclick="event.stopPropagation(); abrirTrocaLeito('${leito.idInternacao}')">
+              <i class="bi bi-arrow-left-right me-1"></i>Trocar Leito
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger fw-semibold" onclick="event.stopPropagation(); abrirRegistrarSaida('${leito.idInternacao}')">
+              <i class="bi bi-box-arrow-right me-1"></i>Registrar Saída
+            </button>` : ''}
+          </div>
+        </div>`;
+
+      const offcanvasElement = document.getElementById('offcanvasPaciente');
+      const bsOffcanvas = new bootstrap.Offcanvas(offcanvasElement);
+      bsOffcanvas.show();
+    }
+
+    function carregarDadosEdicao() {
+      const idPaciente = document.getElementById('editSelectPaciente').value;
+      if (!idPaciente) return;
+
+      const ativo = globalInternadosAtivos.find(x => String(x.idPaciente) === String(idPaciente));
+      const leito = globalDataLeitos.find(l => String(l.idPaciente) === String(idPaciente) || String(l.idPacienteMae) === String(idPaciente) || String(l.idPacienteRN) === String(idPaciente));
+      if (!ativo && !leito) return;
+
+      const ehUENEdit = String(setorAtualParam).trim().toUpperCase() === 'UEN';
+      const ehUtiMaterna = String(setorAtualParam).trim().toUpperCase() === 'UTI MATERNA';
+      const ehAlcon = ['ALCON 1','ALCON 2'].includes(String(setorAtualParam).trim().toUpperCase());
+      const tipoPaciente = String((ativo && ativo.tipoPaciente) || (leito && leito.tipoPaciente) || '').trim().toUpperCase().replace('MÃE','MAE');
+      const fonte = ativo || leito;
+
+      document.getElementById('editIdPaciente').value = idPaciente;
+      document.getElementById('editIdInternacao').value = ativo ? ativo.idInternacao : leito.idInternacao;
+      document.getElementById('editNome').value = ativo ? ativo.nome : (idPaciente === leito.idPacienteMae ? (leito.nomeMae || '') : (idPaciente === leito.idPacienteRN ? (leito.nomeRN || '') : leito.pacienteNome));
+      document.getElementById('editProntuario').value = (ativo && ativo.numeroProntuario) || leito.numeroProntuario || '';
+      document.getElementById('editPeso').value = fonte.pesoNascer || leito.pesoNascer || '';
+
+      const proc = String(fonte.procedencia || leito.procedencia || '');
+      const ehOutro = proc.toUpperCase().indexOf('OUTRO HOSPITAL -') === 0;
+      document.getElementById('editProcedencia').value = ehOutro ? 'OUTRO HOSPITAL' : proc;
+      const wrapOutroEdit = document.getElementById('editProcedenciaOutroWrap');
+      wrapOutroEdit.classList.toggle('d-none', !ehOutro);
+      document.getElementById('editProcedenciaOutro').required = ehOutro;
+      document.getElementById('editProcedenciaOutro').value = ehOutro ? proc.substring(proc.indexOf('-') + 1).trim() : '';
+
+      document.getElementById('editGravidadeWrap').classList.toggle('d-none', !ehUENEdit);
+      document.getElementById('editGravidade').value = fonte.gravidade || leito.gravidade || 'Moderada';
+      document.getElementById('editSexo').value = (ehUtiMaterna || (ehAlcon && tipoPaciente === 'MAE')) ? 'F' : ((fonte.sexo || leito.sexo) || 'M');
+      document.getElementById('editNasc').value = fonte.dataNascimento || leito.dataNascimento || '';
+      document.getElementById('editHoraNasc').value = fonte.horaNascimento || leito.horaNascimento || '';
+      document.getElementById('editIG').value = fonte.ig || leito.ig || '';
+
+      const hideEditPeso = ehUtiMaterna || (ehAlcon && tipoPaciente === 'MAE');
+      document.getElementById('editPesoWrap').classList.toggle('d-none', hideEditPeso);
+      document.getElementById('editPeso').required = !hideEditPeso;
+      if (hideEditPeso) document.getElementById('editPeso').value = '';
+
+      const hideHora = ehUtiMaterna || (ehAlcon && tipoPaciente === 'MAE');
+      const hideIG = ehAlcon && tipoPaciente === 'MAE';
+      document.getElementById('editHoraNascWrap').classList.toggle('d-none', hideHora);
+      document.getElementById('editIGWrap').classList.toggle('d-none', hideIG);
+      document.getElementById('editSexoWrap').classList.toggle('d-none', ehUtiMaterna || (ehAlcon && tipoPaciente === 'MAE'));
+      document.getElementById('editSexo').required = !(ehUtiMaterna || (ehAlcon && tipoPaciente === 'MAE'));
+
+      document.getElementById('editProcedimentoLabel').textContent = ehUtiMaterna || ehAlcon ? 'Procedimento' : 'Tipo de Parto';
+      document.getElementById('editPartoClinico').classList.toggle('d-none', !(ehUtiMaterna || ehAlcon));
+      document.querySelector('label[for="editPartoClinico"]').classList.toggle('d-none', !(ehUtiMaterna || ehAlcon));
+      document.getElementById('editObservacaoWrap').classList.toggle('d-none', !(ehUtiMaterna || ehAlcon));
+      document.getElementById('editObservacaoProcedimento').value = fonte.observacaoProcedimento || leito.observacaoProcedimento || '';
+
+      const valorParto = String(fonte.tipoParto || leito.tipoParto || 'Normal');
+      const radioParto = document.querySelector(`input[name="editTipoParto"][value="${valorParto}"]`) || document.querySelector('input[name="editTipoParto"][value="Normal"]');
+      if (radioParto) radioParto.checked = true;
+    }
+
+    function preencherEAbrirEdicao(idPaciente) {
+      const offcanvasElement = bootstrap.Offcanvas.getInstance(document.getElementById('offcanvasPaciente'));
+      if (offcanvasElement) offcanvasElement.hide();
+
+      document.getElementById('editSelectPaciente').value = idPaciente;
+      carregarDadosEdicao();
+
+      const modalEdit = new bootstrap.Modal(document.getElementById('modalEditarInternacao'));
+      modalEdit.show();
+    }
+
+    let indRequestId = 0;
+    let indTimeoutId = null;
+
+    function abrirIndicadoresLeito(leitoId) {
+      const leito = globalDataLeitos.find(l => String(l.ID_Leito) === String(leitoId));
+      if (!leito || leito.Status !== 'Ocupado') return;
+
+      // Identifica esta requisição: se o modal for reaberto para outro leito antes da resposta
+      // chegar, a resposta antiga (fora de ordem) é ignorada em vez de sobrescrever a tela atual.
+      const meuRequestId = ++indRequestId;
+      if (indTimeoutId) clearTimeout(indTimeoutId);
+
+      document.getElementById('indLeitoId').value = leitoId;
+      document.getElementById('indPaciente').value = leito.pacienteNome;
+      document.getElementById('indData').value = dataLocalISO();
+      document.getElementById('indNascimento').value = '';
+      document.getElementById('indPeleSim').checked = true;
+      document.getElementById('indPeleNao').checked = false;
+      document.getElementById('indPeleDuracao').value = 0;
+      document.getElementById('indPeleDiaVida').textContent = 'Calculando...';
+      document.getElementById('indPeleHistorico').innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Carregando...';
+      document.getElementById('indVisitaMae').checked = false;
+      document.getElementById('indVisitaPai').checked = false;
+      document.getElementById('indVisitaIrmao').checked = false;
+      document.getElementById('indVisitaAvos').checked = false;
+      document.getElementById('indHistorico').innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Carregando...';
+
+      const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('modalIndicadoresLeito'));
+      modal.show();
+
+      indTimeoutId = setTimeout(() => {
+        if (meuRequestId !== indRequestId) return;
+        document.getElementById('indHistorico').innerHTML =
+          '<span class="text-danger">Tempo esgotado ao carregar. <a href="#" onclick="event.preventDefault(); abrirIndicadoresLeito(\'' + leitoId + '\')">Tentar novamente</a></span>';
+      }, 10000);
+
+      google.script.run
+        .withSuccessHandler(dados => {
+          if (meuRequestId !== indRequestId) return; // resposta de uma abertura anterior - ignora
+          clearTimeout(indTimeoutId);
+          document.getElementById('indIdInternacao').value = dados.idInternacao || '';
+          document.getElementById('indNascimento').value = dados.dataNascimentoISO || '';
+          if (dados.hoje) preencherFormularioIndicadores(dados.hoje);
+          renderizarHistoricoIndicadores(dados.historico || []);
+          preencherContatoPeleIndicador(dados);
+        })
+        .withFailureHandler(err => {
+          if (meuRequestId !== indRequestId) return;
+          clearTimeout(indTimeoutId);
+          document.getElementById('indHistorico').innerHTML =
+            '<span class="text-danger">Não foi possível carregar. <a href="#" onclick="event.preventDefault(); abrirIndicadoresLeito(\'' + leitoId + '\')">Tentar novamente</a></span>';
+          alert(err && err.message ? err.message : 'Não foi possível carregar os indicadores deste leito.');
+        })
+        .buscarIndicadoresPorLeito(leitoId);
+    }
+
+    // Ao fechar o modal (Cancelar, X, Esc ou após salvar), invalida qualquer resposta pendente
+    // e limpa o timeout, para que uma requisição antiga nunca "vaze" para a próxima abertura.
+    document.getElementById('indData').addEventListener('change', calcularDiaVidaPeleNoIndicador);
+
+    document.getElementById('modalIndicadoresLeito').addEventListener('hidden.bs.modal', () => {
+      indRequestId++;
+      if (indTimeoutId) clearTimeout(indTimeoutId);
+    });
+
+    function preencherFormularioIndicadores(reg) {
+      const setRadio = (name, valor) => {
+        const el = document.querySelector(`input[name="${name}"][value="${valor === 'Sim' ? 'Sim' : 'Não'}"]`);
+        if (el) el.checked = true;
+      };
+      setRadio('indExtracao', reg.Extracao_Leite_Beira_Leito);
+      document.getElementById('indVisitaMae').checked = String(reg.Visita_Mae).trim() === 'Sim';
+      document.getElementById('indVisitaPai').checked = String(reg.Visita_Pai).trim() === 'Sim';
+      document.getElementById('indVisitaIrmao').checked = String(reg.Visita_Irmao).trim() === 'Sim';
+      document.getElementById('indVisitaAvos').checked = String(reg.Visita_Avos).trim() === 'Sim';
+    }
+
+    function renderizarHistoricoIndicadores(historico) {
+      const container = document.getElementById('indHistorico');
+      if (!historico.length) {
+        container.innerHTML = 'Nenhum lançamento anterior.';
+        return;
+      }
+      container.innerHTML = historico.slice().reverse().map(r => {
+        const acompanhantes = ['Mae','Pai'].filter(v => String(r['Visita_' + v]).trim() === 'Sim');
+        const visitantes = ['Irmao','Avos'].filter(v => String(r['Visita_' + v]).trim() === 'Sim');
+        const partes = [];
+        if (acompanhantes.length) partes.push(`<span class="fw-semibold">Acompanhantes:</span> ${acompanhantes.join(', ')}`);
+        if (visitantes.length) partes.push(`<span class="fw-semibold">Visitantes:</span> ${visitantes.join(', ')}`);
+        if (!partes.length) partes.push('<span class="text-muted">Nenhuma visita registrada</span>');
+        return `
+          <div class="border rounded px-2 py-2 mb-1">
+            <div><strong>${r.Data}</strong> · Extração: ${r.Extracao_Leite_Beira_Leito || 'Não'}</div>
+            <div class="mt-1">${partes.join(' &nbsp;·&nbsp; ')}</div>
+          </div>`;
+      }).join('');
+    }
+
+    // Contato Pele a Pele agora pertence ao lançamento diário de Indicadores de Qualidade / Método Canguru.
+    function calcularDiaVidaPeleNoIndicador() {
+      const nascimentoTxt = String(document.getElementById('indNascimento').value || '').trim();
+      const data = document.getElementById('indData').value;
+      if (!nascimentoTxt || !data) {
+        document.getElementById('indPeleDiaVida').textContent = 'Informe a data para calcular.';
+        return;
+      }
+      const nascimento = new Date(nascimentoTxt + 'T00:00:00');
+      const contato = new Date(data + 'T00:00:00');
+      nascimento.setHours(0,0,0,0); contato.setHours(0,0,0,0);
+      const dias = Math.floor((contato - nascimento) / 86400000) + 1;
+      document.getElementById('indPeleDiaVida').textContent =
+        dias === 1 ? '1º Dia de Vida' : (dias >= 2 && dias <= 4 ? '2º ao 4º Dia de Vida' : `${dias}º Dia de Vida`);
+    }
+
+    function renderizarHistoricoPeleIndicador(historico) {
+      const el = document.getElementById('indPeleHistorico');
+      if (!historico || !historico.length) {
+        el.innerHTML = 'Nenhum lançamento anterior.';
+        return;
+      }
+      const ordenados = historico.slice().sort((a,b) => String(a.Data_Contato || '').localeCompare(String(b.Data_Contato || '')));
+      const temPrimeiroDia = ordenados.some(r => String(r.Dia_Vida || '').trim() === '1º Dia de Vida');
+      el.innerHTML = ordenados.reverse().map(r => {
+        const mostrarClassificacao = !temPrimeiroDia || String(r.Dia_Vida || '').trim() === '1º Dia de Vida';
+        const classificacao = mostrarClassificacao && r.Dia_Vida ? ` · ${r.Dia_Vida}` : '';
+        return `
+          <div class="border rounded px-2 py-1 mb-1 d-flex justify-content-between align-items-center">
+            <span><strong>${r.Data_Contato || '-'}</strong> · ${r.Contato_Realizado || 'Não'}${classificacao}</span>
+            <span class="badge text-bg-light">${r.Contato_Realizado === 'Sim' ? (Number(r.Duracao_Min) || 0) + ' min' : '—'}</span>
+          </div>`;
+      }).join('');
+    }
+
+    function preencherContatoPeleIndicador(dados) {
+      const hoje = dados && dados.peleHoje ? dados.peleHoje : null;
+      document.getElementById('indPeleSim').checked = !hoje || String(hoje.Contato_Realizado).trim() === 'Sim';
+      document.getElementById('indPeleNao').checked = !!hoje && String(hoje.Contato_Realizado).trim() !== 'Sim';
+      document.getElementById('indPeleDuracao').value = hoje ? (Number(hoje.Duracao_Min) || 0) : 0;
+      document.getElementById('indPeleDiaVida').textContent = hoje && hoje.Dia_Vida ? hoje.Dia_Vida : 'Calculando...';
+      renderizarHistoricoPeleIndicador((dados && dados.historicoPele) || []);
+      calcularDiaVidaPeleNoIndicador();
+    }
+
+    function salvarContatoPeleAPeleDoIndicador() {
+      const idInternacao = document.getElementById('indIdInternacao').value;
+      const dataContato = document.getElementById('indData').value;
+      if (!idInternacao || !dataContato) {
+        alert('Internação ou data do lançamento não identificada.');
+        return;
+      }
+      const payload = {
+        idInternacao,
+        dataContato,
+        contatoRealizado: document.querySelector('input[name="indPeleRealizado"]:checked').value,
+        duracao: document.getElementById('indPeleDuracao').value,
+        usuario: "<?!= nomeUsuario ?>"
+      };
+      const btn = document.getElementById('btnSalvarContatoIndicador');
+      travarBotao(btn, 'Salvando...');
+      google.script.run.withSuccessHandler(ret => {
+        liberarBotao(btn, 'Salvar Contato Pele a Pele do Dia');
+        document.getElementById('indPeleDiaVida').textContent = ret.diaVida || '-';
+        abrirIndicadoresLeito(document.getElementById('indLeitoId').value);
+      }).withFailureHandler(err => liberarBotao(btn, 'Salvar Contato Pele a Pele do Dia', err))
+        .salvarContatoPeleAPele(payload);
+    }
+
+    document.getElementById('formIndicadoresLeito').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const payload = {
+        idInternacao: document.getElementById('indIdInternacao').value,
+        data: document.getElementById('indData').value,
+        extracaoLeite: document.querySelector('input[name="indExtracao"]:checked').value,
+        visitaMae: document.getElementById('indVisitaMae').checked ? 'Sim' : 'Não',
+        visitaPai: document.getElementById('indVisitaPai').checked ? 'Sim' : 'Não',
+        visitaIrmao: document.getElementById('indVisitaIrmao').checked ? 'Sim' : 'Não',
+        visitaAvos: document.getElementById('indVisitaAvos').checked ? 'Sim' : 'Não',
+        usuario: "<?!= nomeUsuario ?>"
+      };
+
+      if (!payload.idInternacao) {
+        alert('Internação não identificada para este leito. Atualize a tela e tente novamente.');
+        return;
+      }
+
+      const btn = e.submitter;
+      travarBotao(btn, 'Salvando...');
+      google.script.run.withSuccessHandler(() => {
+        liberarBotao(btn, 'Salvar Indicadores do Dia');
+        bootstrap.Modal.getInstance(document.getElementById('modalIndicadoresLeito')).hide();
+      }).withFailureHandler(err => liberarBotao(btn, 'Salvar Indicadores do Dia', err))
+        .salvarIndicadoresLeito(payload);
+    });
+
+    function mudarStatus(leitoId, novoStatus) {
+      google.script.run.withSuccessHandler(carregarDashboard).alterarStatusLeito(leitoId, novoStatus);
+    }
+
+    function excluirLeito(leitoId) {
+      if (confirm("Tem certeza que deseja excluir este leito?")) {
+        google.script.run.withSuccessHandler(carregarDashboard).removerLeito(leitoId);
+      }
+    }
+
+    document.getElementById('formAlterarStatusLeito').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('btnSalvarStatusLeito');
+      const leitoId = document.getElementById('statusLeitoId').value;
+      const novoStatus = document.getElementById('statusLeitoNovo').value;
+      if (!leitoId || !novoStatus) return;
+
+      btn.disabled = true;
+      google.script.run
+        .withSuccessHandler(() => {
+          btn.disabled = false;
+          bootstrap.Modal.getInstance(document.getElementById('modalAlterarStatusLeito')).hide();
+          carregarDashboard();
+        })
+        .withFailureHandler(err => {
+          btn.disabled = false;
+          alert(err && err.message ? err.message : 'Não foi possível alterar o status do leito.');
+        })
+        .alterarStatusLeito(leitoId, novoStatus);
+    });
+
+    document.getElementById('modalEditarInternacao').addEventListener('show.bs.modal', () => resetBotaoModal('#formEditarInternacao button[type="submit"]', 'Salvar Alterações'));
+    document.getElementById('modalEditarInternacao').addEventListener('hidden.bs.modal', () => resetBotaoModal('#formEditarInternacao button[type="submit"]', 'Salvar Alterações'));
+
+    // Garante que o botão nunca permaneça travado ao reabrir a tela de saída.
+    document.getElementById('modalMovimentacao').addEventListener('show.bs.modal', resetBotaoRegistrarSaida);
+    document.getElementById('modalMovimentacao').addEventListener('hidden.bs.modal', resetBotaoRegistrarSaida);
+
+    document.getElementById('formNovoLeito').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const num = document.getElementById('novoNumeroLeito').value;
+      google.script.run.withSuccessHandler(() => {
+        document.getElementById('novoNumeroLeito').value = '';
+        carregarDashboard();
+      }).adicionarLeito(setorAtualParam, num);
+    });
+
+    document.getElementById('formInternacao').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const payload = {
+        setor: setorAtualParam,
+        data: document.getElementById('intData').value,
+        hora: document.getElementById('intHora').value,
+        nome: document.getElementById('intNome').value,
+        dataNascimento: document.getElementById('intNasc').value,
+        sexo: document.getElementById('intSexo').value,
+        leitoId: document.getElementById('intLeito').value,
+        procedencia: document.getElementById('intProcedencia').value === 'OUTRO HOSPITAL'
+          ? `OUTRO HOSPITAL - ${document.getElementById('intProcedenciaOutro').value}`
+          : document.getElementById('intProcedencia').value,
+        usuario: "<?!= nomeUsuario ?>",
+        tipoPaciente: ['ALCON 1','ALCON 2'].includes(String(setorAtualParam).trim().toUpperCase()) ? document.getElementById('intTipoPaciente').value : '',
+        tipoProcedimento: document.querySelector('input[name="tipoParto"]:checked').value,
+        tipoParto: document.querySelector('input[name="tipoParto"]:checked').value,
+        pesoNascer: (String(setorAtualParam).trim().toUpperCase() === 'UTI MATERNA' || (['ALCON 1','ALCON 2'].includes(String(setorAtualParam).trim().toUpperCase()) && document.getElementById('intTipoPaciente').value === 'MAE')) ? '' : (String(setorAtualParam).trim().toUpperCase() === 'UCINCA' ? document.querySelector('input[name="pesoNascerUcinca"]:checked').value : document.querySelector('input[name="pesoNascer"]:checked').value),
+        numeroProntuario: document.getElementById('intProntuario').value,
+        cpf: document.getElementById('intCpf').value,
+        cartaoSus: document.getElementById('intCartaoSus').value,
+        telefone: document.getElementById('intTelefone').value,
+        horaNascimento: (String(setorAtualParam).trim().toUpperCase() === 'UTI MATERNA' || (['ALCON 1','ALCON 2'].includes(String(setorAtualParam).trim().toUpperCase()) && document.getElementById('intTipoPaciente').value === 'MAE')) ? '' : document.getElementById('intHoraNasc').value,
+        ig: (['ALCON 1','ALCON 2'].includes(String(setorAtualParam).trim().toUpperCase()) && document.getElementById('intTipoPaciente').value === 'MAE') ? '' : document.getElementById('intIG').value,
+        observacaoProcedimento: document.getElementById('intObservacaoProcedimento').value
+      };
+
+      const btn = e.submitter;
+      travarBotao(btn, 'Registrando Internação...');
+      google.script.run.withSuccessHandler(() => {
+        bootstrap.Modal.getInstance(document.getElementById('modalInternacao')).hide();
+        carregarDashboard();
+      }).withFailureHandler(err => liberarBotao(btn, 'Confirmar Internação', err))
+        .registrarInternacao(payload);
+    });
+
+    document.getElementById('formMovimentacao').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const payload = {
+        idInternacao: document.getElementById('movPaciente').value,
+        leitoDestinoId: document.getElementById('movLeitoDestino').value,
+        data: document.getElementById('movData').value,
+        hora: document.getElementById('movHora').value,
+        tipoMovimento: document.getElementById('movTipo').value,
+        destino: document.getElementById('movTipo').value === 'Alta' && document.getElementById('movDestino').value === 'OUTRO MUNICÍPIO'
+          ? `OUTRO MUNICÍPIO - ${document.getElementById('movMunicipio').value}`
+          : document.getElementById('movDestino').value,
+        observacao: document.getElementById('movObs').value,
+        pesoSaidaGramas: document.getElementById('movPesoSaida').value,
+        aleitamentoExclusivo: (document.querySelector('input[name="movAleitamento"]:checked') || {}).value || '',
+        etapaCanguru: document.getElementById('movEtapaCanguru').value
+      };
+
+      payload.setorAtual = setorAtualParam;
+      payload.usuario = "<?!= nomeUsuario ?>";
+      const btn = e.submitter;
+      travarBotao(btn, 'Registrando Saída...');
+      // Desconsidera leituras iniciadas antes da gravação desta movimentação.
+      ++requisicaoPainel;
+      painelPendente = null;
+      google.script.run.withSuccessHandler(resultado => {
+        liberarBotao(btn, 'Confirmar Registro');
+        limparCachePaineis();
+        bootstrap.Modal.getInstance(document.getElementById('modalMovimentacao')).hide();
+        if (resultado && resultado.success === true && resultado.painel &&
+            String(payload.setorAtual).toUpperCase() === String(setorAtualParam).toUpperCase()) {
+          aplicarRespostaPainel(resultado.painel, payload.setorAtual, ++requisicaoPainel);
+        } else {
+          // A gravação já foi concluída. Repetir somente a leitura, nunca a saída.
+          carregarDashboard();
+        }
+      }).withFailureHandler(err => liberarBotao(btn, 'Confirmar Registro', err))
+        .registrarMovimentacaoAtualizarPainel(payload);
+    });
+
+    document.getElementById('formEditarInternacao').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const payload = {
+        idPaciente: document.getElementById('editIdPaciente').value,
+        idInternacao: document.getElementById('editIdInternacao').value,
+        nome: document.getElementById('editNome').value,
+        numeroProntuario: document.getElementById('editProntuario').value,
+        pesoNascer: document.getElementById('editPeso').value,
+        procedencia: document.getElementById('editProcedencia').value === 'OUTRO HOSPITAL'
+          ? `OUTRO HOSPITAL - ${document.getElementById('editProcedenciaOutro').value}`
+          : document.getElementById('editProcedencia').value,
+        gravidade: document.getElementById('editGravidade').value,
+        usuario: "<?!= nomeUsuario ?>",
+        sexo: (['UTI MATERNA'].includes(String(setorAtualParam).trim().toUpperCase())) ? 'F' : document.getElementById('editSexo').value,
+        dataNascimento: document.getElementById('editNasc').value,
+        horaNascimento: (String(setorAtualParam).trim().toUpperCase() === 'UTI MATERNA' || (['ALCON 1','ALCON 2'].includes(String(setorAtualParam).trim().toUpperCase()) && String((globalInternadosAtivos.find(x => String(x.idInternacao) === String(document.getElementById('editIdInternacao').value)) || {}).tipoPaciente || '').toUpperCase().replace('MÃE','MAE') === 'MAE')) ? '' : document.getElementById('editHoraNasc').value,
+        ig: (['ALCON 1','ALCON 2'].includes(String(setorAtualParam).trim().toUpperCase()) && String((globalInternadosAtivos.find(x => String(x.idInternacao) === String(document.getElementById('editIdInternacao').value)) || {}).tipoPaciente || '').toUpperCase().replace('MÃE','MAE') === 'MAE') ? '' : document.getElementById('editIG').value,
+        tipoPaciente: String((globalInternadosAtivos.find(x => String(x.idInternacao) === String(document.getElementById('editIdInternacao').value)) || {}).tipoPaciente || '').toUpperCase().replace('MÃE','MAE'),
+        tipoProcedimento: document.querySelector('input[name="editTipoParto"]:checked').value,
+        tipoParto: document.querySelector('input[name="editTipoParto"]:checked').value,
+        observacaoProcedimento: document.getElementById('editObservacaoProcedimento').value
+      };
+
+      const btn = e.submitter;
+      travarBotao(btn, 'Salvando Alterações...');
+      google.script.run.withSuccessHandler(() => {
+        liberarBotao(btn, 'Salvar Alterações');
+        bootstrap.Modal.getInstance(document.getElementById('modalEditarInternacao')).hide();
+        carregarDashboard();
+      }).withFailureHandler(err => liberarBotao(btn, 'Salvar Alterações', err))
+        .editarInternacao(payload);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+{
+  "name": "natus",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Natus — Gestão Inteligente de Leitos (Maternidade Ana Braga, Manaus-AM)",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "db:migrate": "node scripts/migrate.js",
+    "db:seed": "node scripts/seed.js",
+    "db:import": "node scripts/import-sheets.js",
+    "dev": "node dev-server.js",
+    "test": "node scripts/smoke-test.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "xlsx": "^0.18.5"
+  }
+}

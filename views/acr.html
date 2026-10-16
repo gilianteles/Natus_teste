@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Natus - ACR</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+
+  <script src="/natus-rpc.js"></script>
+  <!--@head-->
+</head>
+<body class="nt-body">
+<div class="app-shell">
+  <!--@rail-->
+
+  <section class="content">
+    <header class="nt-topbar">
+      <div>
+        <div class="nt-crumb"><span>Natus</span><i class="bi bi-chevron-right"></i><span>Acolhimento</span></div>
+        <h1 class="nt-title">ACR · Acolhimento com Classificação de Risco</h1>
+      </div>
+      <div class="nt-actions">
+        <span class="nt-chip"><span class="nt-live"></span>Porta de entrada da maternidade</span>
+        <button class="btn btn-light btn-sm" onclick="carregarFila()" title="Atualizar fila"><i class="bi bi-arrow-clockwise me-1"></i>Atualizar</button>
+        <!--@useractions-->
+      </div>
+    </header>
+
+    <main class="main nt-page">
+      <div class="hero">
+        <div class="position-relative" style="z-index:1">
+          <h2>Acolhimento e classificação de risco</h2>
+          <p>Identifique a paciente pelo CPF ou Cartão SUS, classifique o risco e encaminhe para a regulação/internação.</p>
+        </div>
+      </div>
+
+      <!-- KPIs do dia -->
+      <div class="row g-3 mb-4" id="acrKpis">
+        <div class="col-6 col-lg-3"><div class="nt-kpi"><div class="nt-kpi-top"><span class="nt-kpi-label">Atendimentos hoje</span><span class="nt-kpi-icon"><i class="bi bi-clipboard2-pulse"></i></span></div><div class="nt-kpi-value" id="kpiTotal">—</div><div class="nt-kpi-sub"><span>Acolhimento</span></div></div></div>
+        <div class="col-6 col-lg-3"><div class="nt-kpi t-warn"><div class="nt-kpi-top"><span class="nt-kpi-label">Aguardando atendimento</span><span class="nt-kpi-icon"><i class="bi bi-hourglass-split"></i></span></div><div class="nt-kpi-value" id="kpiAguardando">—</div><div class="nt-kpi-sub"><span>Triagem</span></div></div></div>
+        <div class="col-6 col-lg-3"><div class="nt-kpi t-bad"><div class="nt-kpi-top"><span class="nt-kpi-label">Risco alto (Vermelho/Laranja)</span><span class="nt-kpi-icon"><i class="bi bi-exclamation-octagon"></i></span></div><div class="nt-kpi-value" id="kpiAlto">—</div><div class="nt-kpi-sub"><span>Prioridade</span></div></div></div>
+        <div class="col-6 col-lg-3"><div class="nt-kpi t-ok"><div class="nt-kpi-top"><span class="nt-kpi-label">Encaminhados / Alta</span><span class="nt-kpi-icon"><i class="bi bi-box-arrow-right"></i></span></div><div class="nt-kpi-value" id="kpiFinal">—</div><div class="nt-kpi-sub"><span>Fluxo concluído</span></div></div></div>
+      </div>
+
+      <!-- Busca rápida por documento -->
+      <section class="acr-busca">
+        <div class="acr-busca-titulo"><i class="bi bi-search"></i> Busca rápida por documento</div>
+        <p class="text-muted small mb-3">Localize uma paciente já cadastrada pelo <b>CPF</b> ou <b>Cartão SUS</b>. Se não houver cadastro, o formulário é limpo para um novo registro rápido.</p>
+        <form class="row g-2 align-items-end" id="formBuscaDoc" autocomplete="off">
+          <div class="col-md-3">
+            <label class="form-label" for="acrTipoDoc">Tipo de documento</label>
+            <select class="form-select" id="acrTipoDoc">
+              <option value="CPF">CPF</option>
+              <option value="SUS">Cartão SUS</option>
+            </select>
+          </div>
+          <div class="col-md-5">
+            <label class="form-label" for="acrDocumento">Documento</label>
+            <input type="text" class="form-control" id="acrDocumento" inputmode="numeric" placeholder="Somente números" maxlength="20">
+          </div>
+          <div class="col-md-4 d-flex gap-2">
+            <button class="btn btn-natus fw-semibold flex-fill" type="submit"><i class="bi bi-search me-1"></i>Buscar</button>
+            <button class="btn btn-light fw-semibold" type="button" onclick="acrLimparFormulario(true)" title="Limpar / novo cadastro"><i class="bi bi-eraser"></i></button>
+          </div>
+          <div class="col-12"><div class="acr-doc-status" id="acrDocStatus" role="status" aria-live="polite"></div></div>
+        </form>
+        <div id="acrPacienteResumo" class="d-none mt-2"></div>
+      </section>
+
+      <div class="row g-4">
+        <!-- Formulário de atendimento -->
+        <div class="col-xl-7">
+          <div class="card p-4">
+            <h5 class="nt-section-title mb-3"><i class="bi bi-person-vcard"></i> Atendimento de acolhimento</h5>
+            <form id="formACR" class="row g-3">
+              <input type="hidden" id="acrIdPaciente">
+              <div class="col-md-8">
+                <label class="form-label" for="acrNome">Nome completo da paciente / RN <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="acrNome" required placeholder="Ex.: Maria Souza da Silva / RN de Maria">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="acrNasc">Data de nascimento</label>
+                <input type="date" class="form-control" id="acrNasc">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="acrSexo">Sexo</label>
+                <select class="form-select" id="acrSexo"><option value="F">Feminino</option><option value="M">Masculino</option></select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="acrCpf">CPF</label>
+                <input type="text" class="form-control" id="acrCpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="acrCartaoSus">Cartão SUS</label>
+                <input type="text" class="form-control" id="acrCartaoSus" inputmode="numeric" maxlength="20" placeholder="Número do CNS">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="acrTelefone">Telefone / WhatsApp</label>
+                <input type="text" class="form-control" id="acrTelefone" inputmode="tel" maxlength="20" placeholder="(92) 9....">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="acrProntuario">Nº Prontuário</label>
+                <input type="text" class="form-control" id="acrProntuario" maxlength="30" placeholder="Ex.: 123456">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="acrDestino">Destino / Encaminhamento</label>
+                <input type="text" class="form-control" id="acrDestino" list="acrDestinos" placeholder="Ex.: PPP, UTIN 1, Ambulatório">
+                <datalist id="acrDestinos">
+                  <option value="PPP"></option><option value="CCO"></option><option value="UTIN 1"></option><option value="UTIN 2"></option>
+                  <option value="UTIN 3"></option><option value="UCINCO"></option><option value="UCINCA"></option>
+                  <option value="ALCON 1"></option><option value="ALCON 2"></option><option value="UTI MATERNA"></option>
+                  <option value="Ambulatório"></option><option value="Alta domiciliar"></option>
+                </datalist>
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="acrQueixa">Queixa principal / motivo do atendimento</label>
+                <input type="text" class="form-control" id="acrQueixa" maxlength="200" placeholder="Ex.: trabalho de parto, sangramento, febre...">
+              </div>
+              <div class="col-12">
+                <label class="form-label d-block">Classificação de risco <span class="text-danger">*</span></label>
+                <div class="risco-grupo" role="radiogroup" aria-label="Classificação de risco">
+                  <input class="risco-opcao" type="radio" name="acrRisco" id="riscoVermelho" value="Vermelho">
+                  <label class="risco-label risco-vermelho" for="riscoVermelho"><span class="dot"></span>Vermelho — emergência</label>
+                  <input class="risco-opcao" type="radio" name="acrRisco" id="riscoLaranja" value="Laranja">
+                  <label class="risco-label risco-laranja" for="riscoLaranja"><span class="dot"></span>Laranja — muito urgente</label>
+                  <input class="risco-opcao" type="radio" name="acrRisco" id="riscoAmarelo" value="Amarelo">
+                  <label class="risco-label risco-amarelo" for="riscoAmarelo"><span class="dot"></span>Amarelo — urgente</label>
+                  <input class="risco-opcao" type="radio" name="acrRisco" id="riscoVerde" value="Verde">
+                  <label class="risco-label risco-verde" for="riscoVerde"><span class="dot"></span>Verde — pouco urgente</label>
+                  <input class="risco-opcao" type="radio" name="acrRisco" id="riscoAzul" value="Azul" checked>
+                  <label class="risco-label risco-azul" for="riscoAzul"><span class="dot"></span>Azul — não urgente</label>
+                </div>
+              </div>
+              <div class="col-12">
+                <label class="form-label" for="acrObservacao">Observações</label>
+                <textarea class="form-control" id="acrObservacao" rows="2" placeholder="Informações complementares do acolhimento..."></textarea>
+              </div>
+              <div class="col-12 d-flex gap-2">
+                <button class="btn btn-natus fw-semibold" type="submit"><i class="bi bi-check2-circle me-1"></i>Registrar atendimento</button>
+                <button class="btn btn-light fw-semibold" type="button" onclick="acrLimparFormulario(false)">Limpar formulário</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- Fila do dia -->
+        <div class="col-xl-5">
+          <div class="card p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+              <h5 class="nt-section-title mb-0"><i class="bi bi-list-check"></i> Fila do ACR</h5>
+              <input type="date" class="form-control form-control-sm w-auto" id="acrDataFila" onchange="carregarFila()">
+            </div>
+            <div class="table-responsive" style="max-height:60vh;overflow:auto">
+              <table class="table table-sm align-middle mb-0">
+                <thead class="table-light"><tr><th>Paciente</th><th>Risco</th><th>Situação</th><th class="text-end">Ações</th></tr></thead>
+                <tbody id="acrFilaBody">
+                  <tr><td colspan="4" class="text-center text-muted py-4">Carregando fila...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </section>
+</div>
+
+<div class="toast-container position-fixed bottom-0 end-0 p-3" id="acrToasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  const token = "<?!= token ?>", appUrl = "<?!= appUrl ?>";
+  window.ACR = { token: token, appUrl: appUrl };
+</script>
+</body>
+</html>

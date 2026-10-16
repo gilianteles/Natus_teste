@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" type="image/png" href="/assets/img-e02cd94544.png">
+  <title>Dashboard Geral - Natus</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <style>.badge-uen { background: #A78BFA; color:#1b1033; }
+    table.tabela-setores th { border-top: none; }</style>
+  <script src="/natus-rpc.js"></script>
+  <!--@head-->
+</head>
+<body class="nt-body">
+  <!--@rail-->
+  <header class="nt-topbar">
+    <div>
+      <div class="nt-crumb"><span>Natus</span><i class="bi bi-chevron-right"></i><span>Visão consolidada</span></div>
+      <h1 class="nt-title">Dashboard geral</h1>
+    </div>
+    <div class="nt-actions">
+      <button class="btn btn-light btn-sm" onclick="abrirRelatorio()"><i class="bi bi-file-earmark-bar-graph-fill me-1"></i>Relatório</button>
+      <!--@useractions-->
+    </div>
+  </header>
+
+  <div class="container-fluid px-4">
+    <div class="card border-0 mb-4 p-3">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold mb-1">Mês</label>
+          <select id="filtroMes" class="form-select form-select-sm" onchange="atualizarDash()"></select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold mb-1">Ano</label>
+          <select id="filtroAno" class="form-select form-select-sm" onchange="atualizarDash()"></select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold mb-1">Setor</label>
+          <select id="filtroSetor" class="form-select form-select-sm" onchange="trocarSetor(this.value)"></select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Indicador de carregamento: aparece enquanto o servidor calcula os indicadores/gráficos
+         (pode levar alguns segundos ao agregar "Todos os Setores"), para deixar claro que a
+         tela não travou. -->
+    <div id="loadingDashboard" class="text-center py-5 d-none">
+      <div class="spinner-border text-primary" role="status" style="width:3rem;height:3rem;"></div>
+      <div class="mt-3 fw-semibold text-muted">Calculando indicadores<span id="loadingSetorLabel"></span>...</div>
+      <div class="small text-muted">Isso pode levar alguns segundos, especialmente em "Todos os Setores".</div>
+    </div>
+
+    <div id="conteudoDashboard">
+    <ul class="nav nav-pills nav-pills-clean mb-4" id="abasDashboard">
+      <li class="nav-item">
+        <button type="button" class="nav-link active" id="abaBtnVisaoGeral" onclick="alternarAba('visaoGeral')">
+          <i class="bi bi-bar-chart-line-fill me-1"></i> Visão Geral
+        </button>
+      </li>
+      <li class="nav-item">
+        <button type="button" class="nav-link" id="abaBtnQualidade" onclick="alternarAba('qualidade')">
+          <i class="bi bi-heart-pulse-fill me-1"></i> Qualidade do Leito &amp; Método Canguru
+        </button>
+      </li>
+    </ul>
+
+    <div id="painelVisaoGeral">
+    <div class="row g-3 mb-4">
+      <div class="col-md-3">
+        <div class="card kpi-clean p-3 h-100" style="--accent:#0FA394;">
+          <small id="kpiTaxaLabel">TAXA DE OCUPAÇÃO HOSPITALAR (%) Mensal</small>
+          <h3 class="fw-bold mb-0" id="kpiTaxa">0%</h3>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card kpi-clean p-3 h-100" style="--accent:#34D399;">
+          <small>Média Pacientes/DIA</small>
+          <h3 class="fw-bold mb-0" id="kpiMediaPacientes">0</h3>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card kpi-clean p-3 h-100" style="--accent:#F87171;">
+          <small>Taxa de MORTALIDADE</small>
+          <h3 class="fw-bold mb-0" id="kpiMortalidade">0%</h3><div class="small mt-1 text-muted">Óbitos no mês: <strong id="kpiObitosMes">0</strong></div>
+          <div class="small mt-1 text-muted" id="kpiMortalidadeNota"></div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card kpi-clean p-3 h-100" style="--accent:#343a40;">
+          <small>Pacientes Admitidos por Faixa de Peso</small>
+          <div id="pesoFaixasContainer" class="mt-2"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+      <div class="col-md-4">
+        <div class="card kpi-clean p-3 h-100" style="--accent:#0FA394;">
+          <small>ADMISSÕES NO MÊS</small>
+          <div class="d-flex justify-content-between mt-2"><span>Internas</span><strong id="admissoesInternasMes">0</strong></div>
+          <div class="d-flex justify-content-between"><span>Externas</span><strong id="admissoesExternasMes">0</strong></div>
+          <hr class="my-2">
+          <div class="d-flex justify-content-between fw-bold"><span>Total Geral</span><strong id="admissoesTotalGeral">0</strong></div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card kpi-clean p-3 h-100" style="--accent:#94A3B8;">
+          <small>ALTAS NO MÊS</small>
+          <div class="d-flex justify-content-between mt-2"><span>Domiciliar (Capital)</span><strong id="altasDomiciliar">0</strong></div>
+          <div class="d-flex justify-content-between"><span>Outro Município</span><strong id="altasMunicipio">0</strong></div>
+          <hr class="my-2">
+          <div class="d-flex justify-content-between fw-bold"><span>Total Geral</span><strong id="altasTotalGeral">0</strong></div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card kpi-clean p-3 h-100" style="--accent:#F5B73B;">
+          <small>TRANSFERÊNCIAS NO MÊS</small>
+          <div class="d-flex justify-content-between mt-2"><span>Internas</span><strong id="transfInternasMes">0</strong></div>
+          <div class="d-flex justify-content-between"><span>Externas (Outro Hospital)</span><strong id="transfExternasMes">0</strong></div>
+          <hr class="my-2">
+          <div class="d-flex justify-content-between fw-bold"><span>Total Geral</span><strong id="transfTotalGeral">0</strong></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabela por setor: só aparece quando "Todos os Setores" está selecionado -->
+    <div class="row g-3 mb-4 d-none" id="blocoPorSetor">
+      <div class="col-12">
+        <div class="chart-box">
+          <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-hospital me-2"></i>Ocupação por Setor</h6>
+          <div class="table-responsive">
+            <table class="table table-sm tabela-setores align-middle mb-0">
+              <thead><tr><th>Setor</th><th>Leitos</th><th>Taxa Ocupação</th><th>Admissões</th><th>Altas</th><th>Óbitos</th></tr></thead>
+              <tbody id="tbodyPorSetor"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Card exclusivo da UCINCA: adequação de peso nas Altas -->
+    <div class="row g-3 mb-4 d-none" id="blocoAltasPesoUcinca">
+      <div class="col-12">
+        <div class="chart-box">
+          <h6 class="fw-bold text-secondary mb-3">
+            <i class="bi bi-clipboard2-pulse-fill me-2"></i>Adequação de Peso nas Altas — UCINCA
+          </h6>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <div class="border rounded p-3 h-100">
+                <div class="small text-muted fw-semibold mb-2"><i class="bi bi-house-door-fill me-1"></i>Alta Domiciliar (Capital) — mín. <span id="limiarDomiciliar">1.600</span>g</div>
+                <div class="d-flex justify-content-between small"><span>Abaixo do peso ideal</span><strong class="text-danger" id="domAbaixo">0</strong></div>
+                <div class="d-flex justify-content-between small"><span>Peso ideal</span><strong class="text-success" id="domIdeal">0</strong></div>
+                <div class="d-flex justify-content-between small"><span>Alta tardia (muito além)</span><strong class="text-warning" id="domTardia">0</strong></div>
+                <div class="d-flex justify-content-between small text-muted"><span>Não informado</span><strong id="domNaoInformado">0</strong></div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="border rounded p-3 h-100">
+                <div class="small text-muted fw-semibold mb-2"><i class="bi bi-signpost-split-fill me-1"></i>Alta Outro Município — mín. <span id="limiarMunicipio">2.500</span>g</div>
+                <div class="d-flex justify-content-between small"><span>Abaixo do peso ideal</span><strong class="text-danger" id="munAbaixo">0</strong></div>
+                <div class="d-flex justify-content-between small"><span>Peso ideal</span><strong class="text-success" id="munIdeal">0</strong></div>
+                <div class="d-flex justify-content-between small"><span>Alta tardia (muito além)</span><strong class="text-warning" id="munTardia">0</strong></div>
+                <div class="d-flex justify-content-between small text-muted"><span>Não informado</span><strong id="munNaoInformado">0</strong></div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="border rounded p-3 h-100 bg-light">
+                <div class="small text-muted fw-semibold mb-2"><i class="bi bi-collection-fill me-1"></i>Total Geral (ambos os destinos)</div>
+                <div class="d-flex justify-content-between small"><span>Abaixo do peso ideal</span><strong class="text-danger" id="totAbaixo">0</strong></div>
+                <div class="d-flex justify-content-between small"><span>Peso ideal</span><strong class="text-success" id="totIdeal">0</strong></div>
+                <div class="d-flex justify-content-between small"><span>Alta tardia (muito além)</span><strong class="text-warning" id="totTardia">0</strong></div>
+                <div class="d-flex justify-content-between small text-muted"><span>Não informado</span><strong id="totNaoInformado">0</strong></div>
+              </div>
+            </div>
+          </div>
+          <div class="form-text mt-2">
+            "Alta tardia" considera saídas com peso acima de <span id="margemTardia">500</span>g além do peso mínimo de referência do destino.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-4">
+      <div class="col-md-8">
+        <div class="chart-box">
+          <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-graph-up me-2"></i><span id="tituloChartOcupacao">Evolução da Ocupação Diária</span></h6>
+          <canvas id="chartOcupacao" height="100"></canvas>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="chart-box">
+          <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-pie-chart-fill me-2"></i>Distribuição por Procedência</h6>
+          <canvas id="chartProcedencia" height="210"></canvas>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="chart-box">
+          <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-bar-chart-steps me-2"></i>Média de Permanência por Faixa (Dias)</h6>
+          <canvas id="chartFaixas" height="120"></canvas>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="chart-box">
+          <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-trophy-fill me-2"></i><span id="tituloChartGiros">Rotatividade / Giro por Leito</span></h6>
+          <canvas id="chartGiros" height="120"></canvas>
+        </div>
+      </div>
+    </div>
+    </div>
+
+    <div id="painelQualidade" class="d-none">
+      <div class="chart-box mb-4">
+        <h5 class="fw-bold mb-1"><i class="bi bi-heart-pulse-fill text-danger me-2"></i>Qualidade do Leito &amp; Método Canguru</h5>
+        <div class="text-muted">Registro beira-leito e acompanhamento dos indicadores de cuidado neonatal.</div>
+      </div>
+
+      <div class="row g-3 mb-4">
+        <div class="col-md-3">
+          <div class="card kpi-clean p-3 h-100" style="--accent:#F87171;">
+            <small class="fw-semibold">PELE A PELE — 1º DIA DE VIDA</small>
+            <h3 class="fw-bold mb-0" id="qPele1DiaPct">0%</h3>
+            <div class="small mt-1 text-muted" id="qPele1DiaSub">0 de 0 RNs internados</div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card kpi-clean p-3 h-100" style="--accent:#0dcaf0;">
+            <small class="fw-semibold">PELE A PELE — 2º AO 4º DIA</small>
+            <h3 class="fw-bold mb-0" id="qPele2a4Pct">0%</h3>
+            <div class="small mt-1 text-muted" id="qPele2a4Sub">0 de 0 RNs internados</div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card kpi-clean p-3 h-100" style="--accent:#34D399;">
+            <small class="fw-semibold">EXTRAÇÃO BEIRA-LEITO</small>
+            <h3 class="fw-bold mb-0" id="qExtracaoPct">0%</h3>
+            <div class="small mt-1 text-muted" id="qExtracaoSub">0 de 0 registros</div>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <div class="card kpi-clean p-3 h-100" style="--accent:#343a40;">
+            <small class="fw-semibold">ALEITAMENTO EXCLUSIVO</small>
+            <h3 class="fw-bold mb-0" id="qAleitamentoPct">0%</h3>
+            <div class="small mt-1 text-muted" id="qAleitamentoSub">0 de 0 altas</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-4">
+        <div class="col-md-7" id="colVisitacao">
+          <div class="chart-box">
+            <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-people-fill me-2"></i>Taxa de Visita&ccedil;&atilde;o Familiar</h6>
+            <canvas id="chartVisitacao" height="140"></canvas>
+          </div>
+        </div>
+        <!-- Etapa do Método Canguru: exclusiva da UCINCA (V15) - card ocultado (d-none) quando o
+             filtro de setor não é UCINCA (inclusive "Todos os Setores"), ver
+             renderizarIndicadoresQualidade(). -->
+        <div class="col-md-5 d-none" id="colEtapaCanguru">
+          <div class="chart-box">
+            <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-diagram-3-fill me-2"></i>Etapa do M&eacute;todo Canguru (Altas) — UCINCA</h6>
+            <canvas id="chartEtapaCanguru" height="140"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-text mb-4">
+        Indicadores calculados sobre os lan&ccedil;amentos di&aacute;rios de "Indicadores de Qualidade" feitos no card do leito
+        e sobre os dados complementares registrados na Alta, dentro do m&ecirc;s/setor filtrados acima.
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <!-- Modal Relatório Gerencial -->
+  <div class="modal fade" id="modalRelatorio" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content" style="border-radius:14px;">
+        <div class="modal-header">
+          <div>
+            <h5 class="modal-title fw-bold mb-0"><i class="bi bi-file-earmark-bar-graph-fill me-2"></i>Relatório Gerencial</h5>
+            <div class="small text-muted">Por setor ou geral · período personalizado</div>
+          </div>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="row g-2 align-items-end mb-3">
+            <div class="col-md-3">
+              <label class="form-label small fw-semibold mb-1">Setor</label>
+              <select id="relSetor" class="form-select form-select-sm"></select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small fw-semibold mb-1">Indicador</label>
+              <select id="relIndicador" class="form-select form-select-sm">
+                <option value="Geral">Geral (todos os indicadores)</option>
+                <option value="Admissoes">Admissões por Procedência</option>
+                <option value="Altas">Altas (lista de pacientes)</option>
+                <option value="Internados">Internados no Período (lista)</option>
+                <option value="Obitos">Óbitos (lista de pacientes)</option>
+                <option value="Transferencias">Transferências (lista)</option>
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small fw-semibold mb-1">Data inicial</label>
+              <input type="date" id="relDataInicial" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small fw-semibold mb-1">Data final</label>
+              <input type="date" id="relDataFinal" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+              <button type="button" class="btn btn-dark btn-sm fw-semibold w-100" onclick="gerarRelatorio()">
+                <i class="bi bi-play-fill me-1"></i> Gerar relatório
+              </button>
+            </div>
+          </div>
+          <hr>
+          <div id="resultadoRelatorio">
+            <div class="text-center text-muted py-5">Selecione o período e clique em Gerar relatório.</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Fechar</button>
+          <button type="button" class="btn btn-primary fw-semibold" id="btnImprimirRelatorio" onclick="imprimirRelatorio()" disabled>
+            <i class="bi bi-printer-fill me-1"></i> Imprimir / PDF
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const token = "<?!= token ?>";
+    const appUrl = "<?!= appUrl ?>";
+    let setorAtual = "Todos os Setores";
+      const ROTULO_SETOR = { 'UEN': 'Leito Extra CCO Neonatal' };
+      const rotuloSetor = v => ROTULO_SETOR[String(v || '').trim().toUpperCase()] || String(v || '');
+
+    let chartOcup = null;
+    let chartProc = null;
+    let chartFaix = null;
+    let chartGiro = null;
+    let chartVisitacao = null;
+    let chartEtapaCanguru = null;
+    let abaAtual = 'visaoGeral';
+    let ultimoRelatorio = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      preencherFiltros();
+      carregarSetores();
+      atualizarDash();
+    });
+
+    // Rótulos de exibição para as chaves de data.kpis.peso, que variam conforme o setor:
+    // categorias padrão (<1500 / 1500-2499 / ≥2500) ou categorias exclusivas da UCINCA (V15).
+    function rotuloFaixaPeso(chave) {
+      const rotulos = {
+        menor1500: '< 1.500g',
+        de1500a2499: '1.500–2.499g',
+        maior2500: '> 2.499g',
+        '1250-1499': '1.250–1.499g',
+        '1500-1799': '1.500–1.799g',
+        '1800-2000': '1.800–2.000g',
+        '>2000': '> 2.000g'
+      };
+      return rotulos[chave] || chave;
+    }
+
+    function preencherFiltros() {
+      const selectMes = document.getElementById('filtroMes');
+      const selectAno = document.getElementById('filtroAno');
+      const hoje = new Date();
+
+      const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+      selectMes.innerHTML = meses.map((m, i) => `<option value="${i+1}" ${i === hoje.getMonth() ? 'selected' : ''}>${m}</option>`).join('');
+
+      const anoAtual = hoje.getFullYear();
+      selectAno.innerHTML = `<option value="${anoAtual}" selected>${anoAtual}</option><option value="${anoAtual-1}">${anoAtual-1}</option>`;
+
+      // Relatório: período padrão = mês corrente até hoje.
+      const iso = d => d.toISOString().substring(0, 10);
+      document.getElementById('relDataInicial').value = iso(new Date(hoje.getFullYear(), hoje.getMonth(), 1));
+      document.getElementById('relDataFinal').value = iso(hoje);
+    }
+
+    function carregarSetores() {
+      google.script.run.withSuccessHandler(setores => {
+        const opcoes = ['<option value="Todos os Setores">Todos os Setores</option>']
+          .concat(setores.map(s => `<option value="${s.Nome_Setor}">${rotuloSetor(s.Nome_Setor)}</option>`));
+        document.getElementById('filtroSetor').innerHTML = opcoes.join('');
+
+        const opcoesRel = ['<option value="Todos os Setores">Todos os Setores</option>']
+          .concat(setores.map(s => `<option value="${s.Nome_Setor}">${rotuloSetor(s.Nome_Setor)}</option>`));
+        document.getElementById('relSetor').innerHTML = opcoesRel.join('');
+      }).obterSetores();
+    }
+
+    function mostrarCarregando(mostrar) {
+      document.getElementById('loadingDashboard').classList.toggle('d-none', !mostrar);
+      document.getElementById('conteudoDashboard').classList.toggle('d-none', mostrar);
+    }
+
+    let chamadasPendentes = 0;
+    function iniciarCarregamento() {
+      chamadasPendentes++;
+      mostrarCarregando(true);
+    }
+    function finalizarCarregamento() {
+      chamadasPendentes = Math.max(0, chamadasPendentes - 1);
+      if (chamadasPendentes === 0) mostrarCarregando(false);
+    }
+
+    function atualizarDash() {
+      const mes = document.getElementById('filtroMes').value;
+      const ano = document.getElementById('filtroAno').value;
+
+      iniciarCarregamento();
+      google.script.run
+        .withSuccessHandler(data => { finalizarCarregamento(); renderizarDashboard(data); })
+        .withFailureHandler(err => {
+          finalizarCarregamento();
+          console.error(err);
+          alert('Erro ao carregar o dashboard: ' + (err && err.message ? err.message : err));
+        })
+        .obterEstatisticasDashboardGeral(setorAtual, mes, ano);
+      if (abaAtual === 'qualidade') carregarIndicadoresQualidade();
+    }
+
+    function alternarAba(aba) {
+      abaAtual = aba;
+      document.getElementById('abaBtnVisaoGeral').classList.toggle('active', aba === 'visaoGeral');
+      document.getElementById('abaBtnQualidade').classList.toggle('active', aba === 'qualidade');
+      document.getElementById('painelVisaoGeral').classList.toggle('d-none', aba !== 'visaoGeral');
+      document.getElementById('painelQualidade').classList.toggle('d-none', aba !== 'qualidade');
+      if (aba === 'qualidade') carregarIndicadoresQualidade();
+    }
+
+    function carregarIndicadoresQualidade() {
+      const mes = Number(document.getElementById('filtroMes').value);
+      const ano = Number(document.getElementById('filtroAno').value);
+      const ultimoDia = new Date(ano, mes, 0).getDate();
+      const dataInicio = `${ano}-${String(mes).padStart(2, '0')}-01`;
+      const dataFim = `${ano}-${String(mes).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}`;
+      // O backend espera 'TODOS' (sem filtro) quando o usuário escolhe "Todos os Setores" aqui.
+      const setorParaBackend = setorAtual === 'Todos os Setores' ? 'TODOS' : setorAtual;
+
+      iniciarCarregamento();
+      google.script.run
+        .withSuccessHandler(data => { finalizarCarregamento(); renderizarIndicadoresQualidade(data); })
+        .withFailureHandler(err => {
+          finalizarCarregamento();
+          alert(err && err.message ? err.message : 'Não foi possível carregar os indicadores de qualidade.');
+        })
+        .getDashboardIndicadoresQualidade(dataInicio, dataFim, setorParaBackend);
+    }
+
+    function renderizarIndicadoresQualidade(data) {
+      const totalRNsPele = Number(data.totalRNsInternados || 0);
+      document.getElementById('qPele1DiaPct').textContent = `${data.peleAPele1Dia.percentual}%`;
+      document.getElementById('qPele1DiaSub').textContent = `${data.peleAPele1Dia.sim} de ${totalRNsPele} RNs internados`;
+      document.getElementById('qPele2a4Pct').textContent = `${data.peleAPele2a4Dia.percentual}%`;
+      document.getElementById('qPele2a4Sub').textContent = `${data.peleAPele2a4Dia.sim} de ${totalRNsPele} RNs internados`;
+
+      document.getElementById('qExtracaoPct').textContent = `${data.extracaoLeite.percentual}%`;
+      document.getElementById('qExtracaoSub').textContent = `${data.extracaoLeite.sim} de ${data.totalRegistros} registros`;
+      document.getElementById('qAleitamentoPct').textContent = `${data.aleitamentoExclusivoAlta.percentual}%`;
+      document.getElementById('qAleitamentoSub').textContent = `${data.aleitamentoExclusivoAlta.sim} de ${data.aleitamentoExclusivoAlta.total} altas`;
+
+      if (chartVisitacao) chartVisitacao.destroy();
+      chartVisitacao = new Chart(document.getElementById('chartVisitacao'), {
+        type: 'bar',
+        data: {
+          labels: ['Mãe', 'Pai', 'Irmão', 'Avós'],
+          datasets: [{
+            label: '% de Visitação',
+            data: [data.visitacao.mae.percentual, data.visitacao.pai.percentual, data.visitacao.irmao.percentual, data.visitacao.avos.percentual],
+            backgroundColor: ['#0FA394', '#34D399', '#F5B73B', '#A78BFA']
+          }]
+        },
+        options: { scales: { y: { beginAtZero: true, max: 100 } } }
+      });
+
+      // Etapa do Método Canguru: exclusiva da UCINCA (V15) - card só aparece com o filtro de
+      // setor em UCINCA; nos demais (inclusive "Todos os Setores") a coluna de Visitação
+      // Familiar ocupa a largura toda.
+      const ehUcincaCanguru = String(setorAtual).trim().toUpperCase() === 'UCINCA';
+      document.getElementById('colEtapaCanguru').classList.toggle('d-none', !ehUcincaCanguru);
+      document.getElementById('colVisitacao').className = ehUcincaCanguru ? 'col-md-7' : 'col-md-12';
+
+      if (ehUcincaCanguru) {
+        if (chartEtapaCanguru) chartEtapaCanguru.destroy();
+        const etapas = data.etapaMetodoCanguru || {};
+        chartEtapaCanguru = new Chart(document.getElementById('chartEtapaCanguru'), {
+          type: 'doughnut',
+          data: {
+            labels: Object.keys(etapas).length ? Object.keys(etapas) : ['Sem registros'],
+            datasets: [{
+              data: Object.keys(etapas).length ? Object.values(etapas) : [1],
+              backgroundColor: ['#0FA394', '#34D399', '#F5B73B', '#F87171', '#94A3B8']
+            }]
+          }
+        });
+      }
+    }
+
+    function renderizarDashboard(data) {
+      const ehUEN = !!data.ehUEN;
+      const ehGeral = !!data.ehGeral;
+
+      document.getElementById('kpiTaxaLabel').textContent = ehUEN
+        ? 'CAPACIDADE INSTALADA ACUMULADA (Leito-Dia Vaga Zero) Mensal'
+        : 'TAXA DE OCUPAÇÃO HOSPITALAR (%) Mensal';
+      document.getElementById('kpiTaxa').textContent = ehUEN
+        ? data.kpis.capacidadeInstaladaAcumulada
+        : `${data.kpis.taxaOcupacaoMensal}%`;
+      document.getElementById('kpiMortalidadeNota').textContent = ehUEN
+        ? `Taxa justa: óbitos ÷ (óbitos + transferências p/ UTIN = ${data.kpis.transferenciasParaUTINMes})`
+        : '';
+
+      document.getElementById('kpiMediaPacientes').textContent = data.kpis.mediaPacientesDia;
+      document.getElementById('kpiMortalidade').textContent = `${data.kpis.taxaMortalidade}%`;
+      document.getElementById('kpiObitosMes').textContent = data.kpis.obitosMes;
+      document.getElementById('admissoesInternasMes').textContent = data.kpis.admissoesInternasMes;
+      document.getElementById('admissoesExternasMes').textContent = data.kpis.admissoesExternasMes;
+      document.getElementById('admissoesTotalGeral').textContent = data.kpis.admissoesMes;
+      document.getElementById('altasDomiciliar').textContent = data.kpis.altasDomiciliar;
+      document.getElementById('altasMunicipio').textContent = data.kpis.altasMunicipio;
+      document.getElementById('altasTotalGeral').textContent = data.kpis.altasMes;
+      document.getElementById('transfInternasMes').textContent = data.kpis.transferenciasInternasMes;
+      document.getElementById('transfExternasMes').textContent = data.kpis.transferenciasExternasMes;
+      document.getElementById('transfTotalGeral').textContent = data.kpis.transfMes;
+      // Faixa de Peso: UCINCA usa categorias próprias (V15); em "Todos os Setores" as chaves
+      // de cada setor são somadas dinamicamente no servidor, então aqui só renderizamos o que
+      // vier - ver rotuloFaixaPeso().
+      const pesoContainer = document.getElementById('pesoFaixasContainer');
+      pesoContainer.innerHTML = Object.keys(data.kpis.peso || {}).map(chave => `
+        <div class="d-flex justify-content-between small">
+          <span>${rotuloFaixaPeso(chave)}</span><strong>${data.kpis.peso[chave]}</strong>
+        </div>
+      `).join('');
+
+      // Tabela por setor: só faz sentido em "Todos os Setores".
+      const blocoPorSetor = document.getElementById('blocoPorSetor');
+      if (ehGeral && data.porSetor) {
+        blocoPorSetor.classList.remove('d-none');
+        document.getElementById('tbodyPorSetor').innerHTML = data.porSetor.map(s => `
+          <tr>
+            <td class="fw-semibold">${rotuloSetor(s.setor)}${s.ehUEN ? ' <span class="badge badge-uen">Leito Extra CCO Neonatal</span>' : ''}</td>
+            <td>${s.totalLeitos}</td>
+            <td>${s.ehUEN ? '—' : s.taxaOcupacaoMensal + '%'}</td>
+            <td>${s.admissoes}</td>
+            <td>${s.altas}</td>
+            <td>${s.obitos}</td>
+          </tr>`).join('');
+      } else {
+        blocoPorSetor.classList.add('d-none');
+      }
+
+      const blocoUcinca = document.getElementById('blocoAltasPesoUcinca');
+      const altasPeso = data.estatisticas && data.estatisticas.altasPesoUcinca;
+      if (altasPeso) {
+        blocoUcinca.classList.remove('d-none');
+        document.getElementById('limiarDomiciliar').textContent = altasPeso.domiciliarCapital.limiarMinimo.toLocaleString('pt-BR');
+        document.getElementById('limiarMunicipio').textContent = altasPeso.outroMunicipio.limiarMinimo.toLocaleString('pt-BR');
+        document.getElementById('margemTardia').textContent = altasPeso.margemAltaTardia.toLocaleString('pt-BR');
+        document.getElementById('domAbaixo').textContent = altasPeso.domiciliarCapital.abaixoPesoIdeal;
+        document.getElementById('domIdeal').textContent = altasPeso.domiciliarCapital.pesoIdeal;
+        document.getElementById('domTardia').textContent = altasPeso.domiciliarCapital.altaTardia;
+        document.getElementById('domNaoInformado').textContent = altasPeso.domiciliarCapital.naoInformado;
+        document.getElementById('munAbaixo').textContent = altasPeso.outroMunicipio.abaixoPesoIdeal;
+        document.getElementById('munIdeal').textContent = altasPeso.outroMunicipio.pesoIdeal;
+        document.getElementById('munTardia').textContent = altasPeso.outroMunicipio.altaTardia;
+        document.getElementById('munNaoInformado').textContent = altasPeso.outroMunicipio.naoInformado;
+        document.getElementById('totAbaixo').textContent = altasPeso.total.abaixoPesoIdeal;
+        document.getElementById('totIdeal').textContent = altasPeso.total.pesoIdeal;
+        document.getElementById('totTardia').textContent = altasPeso.total.altaTardia;
+        document.getElementById('totNaoInformado').textContent = altasPeso.total.naoInformado;
+      } else {
+        blocoUcinca.classList.add('d-none');
+      }
+
+      document.getElementById('tituloChartOcupacao').textContent = ehUEN
+        ? 'Capacidade Diária de Leitos Extras (Leito Extra CCO Neonatal)'
+        : (ehGeral ? 'Evolução da Ocupação Diária - Todos os Setores' : 'Evolução da Ocupação Diária');
+      if (chartOcup) chartOcup.destroy();
+      chartOcup = new Chart(document.getElementById('chartOcupacao'), {
+        type: 'line',
+        data: {
+          labels: data.porDia.map(d => d.dia),
+          datasets: [{
+            label: ehUEN ? 'RNs em Leito Extra CCO Neonatal' : 'Ocupação 24h',
+            data: data.porDia.map(d => d.ocupacao),
+            borderColor: '#0FA394',
+            backgroundColor: 'rgba(15, 163, 148, 0.14)',
+            fill: true,
+            tension: 0.3
+          }]
+        }
+      });
+
+      if (chartProc) chartProc.destroy();
+      chartProc = new Chart(document.getElementById('chartProcedencia'), {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(data.estatisticas.procedencia),
+          datasets: [{
+            data: Object.values(data.estatisticas.procedencia),
+            backgroundColor: ['#0FA394', '#34D399', '#F5B73B', '#F87171', '#94A3B8', '#A78BFA', '#38BDF8']
+          }]
+        }
+      });
+
+      if (chartFaix) chartFaix.destroy();
+      chartFaix = new Chart(document.getElementById('chartFaixas'), {
+        type: 'bar',
+        data: {
+          labels: Object.keys(data.estatisticas.faixasPermanencia),
+          datasets: [{
+            label: 'Pacientes',
+            data: Object.values(data.estatisticas.faixasPermanencia),
+            backgroundColor: '#34D399'
+          }]
+        }
+      });
+
+      document.getElementById('tituloChartGiros').textContent = ehGeral
+        ? 'Rotatividade / Giro por Setor'
+        : 'Rotatividade / Giro por Leito';
+      if (chartGiro) chartGiro.destroy();
+      chartGiro = new Chart(document.getElementById('chartGiros'), {
+        type: 'bar',
+        data: {
+          labels: Object.keys(data.estatisticas.girosPorLeito),
+          datasets: [{
+            label: 'Saídas no Mês',
+            data: Object.values(data.estatisticas.girosPorLeito),
+            backgroundColor: '#F5B73B'
+          }]
+        }
+      });
+    }
+
+    function trocarSetor(novoSetor) {
+      setorAtual = novoSetor;
+      atualizarDash();
+    }
+
+    function voltarNIR() {
+      window.top.location.href = `${appUrl}?view=nir&token=${token}`;
+    }
+
+    /* ===================== RELATÓRIO GERENCIAL ===================== */
+
+    function abrirRelatorio() {
+      document.getElementById('relSetor').value = setorAtual;
+      document.getElementById('resultadoRelatorio').innerHTML = '<div class="text-center text-muted py-5">Selecione o período e clique em Gerar relatório.</div>';
+      document.getElementById('btnImprimirRelatorio').disabled = true;
+      ultimoRelatorio = null;
+      bootstrap.Modal.getOrCreateInstance(document.getElementById('modalRelatorio')).show();
+    }
+
+    function gerarRelatorio() {
+      const payload = {
+        setor: document.getElementById('relSetor').value,
+        dataInicial: document.getElementById('relDataInicial').value,
+        dataFinal: document.getElementById('relDataFinal').value,
+        indicador: document.getElementById('relIndicador').value
+      };
+      if (!payload.dataInicial || !payload.dataFinal) { alert('Informe a data inicial e a data final.'); return; }
+
+      document.getElementById('resultadoRelatorio').innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border text-primary"></div><div class="mt-2">Gerando relatório...</div></div>';
+      document.getElementById('btnImprimirRelatorio').disabled = true;
+
+      google.script.run
+        .withSuccessHandler(data => { ultimoRelatorio = data; renderizarResultadoRelatorio(data); document.getElementById('btnImprimirRelatorio').disabled = false; })
+        .withFailureHandler(err => {
+          document.getElementById('resultadoRelatorio').innerHTML = `<div class="alert alert-danger">${(err && err.message) || 'Não foi possível gerar o relatório.'}</div>`;
+        })
+        .gerarRelatorioGerencial(payload);
+    }
+
+    function renderizarResultadoRelatorio(data) {
+      const cab = `
+        <div class="mb-3">
+          <div class="text-uppercase small text-muted">Período</div>
+          <div class="fw-bold fs-5">${data.dataInicial} a ${data.dataFinal}</div>
+          <div class="text-uppercase small text-muted mt-1">${data.setor}</div>
+        </div>`;
+
+      let corpo = '';
+      if (data.tipo === 'geral') {
+        corpo = `
+          <div class="row g-3 mb-3">
+            ${kpiMini('ADMISSÕES', data.kpis.admissoes)}
+            ${kpiMini('ALTAS', data.kpis.altas)}
+            ${kpiMini('ÓBITOS', data.kpis.obitos)}
+            ${kpiMini('TRANSFERÊNCIAS', data.kpis.transferencias)}
+          </div>
+          <div class="row g-3 mb-4">
+            ${kpiMini('RN-DIA / PACIENTE-DIA', data.kpis.pacienteDia)}
+            ${kpiMini('MÉDIA PACIENTES/DIA', data.kpis.mediaDia)}
+            ${kpiMini('PICO DIÁRIO', data.kpis.pico)}
+            ${kpiMini('MORTALIDADE', data.kpis.mortalidade + '%')}
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm tabela-setores align-middle">
+              <thead><tr><th>Setor</th><th>Adm.</th><th>Altas</th><th>Óbitos</th><th>Transf.</th><th>Paciente-dia</th><th>Média/dia</th><th>Pico</th><th>Ocupação física</th></tr></thead>
+              <tbody>
+                ${data.linhas.map(l => `<tr><td class="fw-semibold">${l.setor}</td><td>${l.admissoes}</td><td>${l.altas}</td><td>${l.obitos}</td><td>${l.transferencias}</td><td>${l.pacienteDia}</td><td>${l.mediaDia}</td><td>${l.pico}</td><td>${l.ocupacaoFisica}</td></tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`;
+      } else if (data.tipo === 'admissoes') {
+        corpo = `
+          <div class="mb-3">${kpiMini('TOTAL DE ADMISSÕES', data.total)}</div>
+          <div class="table-responsive">
+            <table class="table table-sm tabela-setores align-middle">
+              <thead><tr><th>Procedência</th><th>Quantidade</th></tr></thead>
+              <tbody>${data.linhas.map(l => `<tr><td>${l.procedencia}</td><td>${l.quantidade}</td></tr>`).join('') || '<tr><td colspan="2" class="text-muted text-center">Nenhuma admissão no período.</td></tr>'}</tbody>
+            </table>
+          </div>`;
+      } else if (data.tipo === 'lista') {
+        const titulo = data.titulo === 'Internados' ? 'Entrada' : 'Data';
+        const colExtra = data.titulo === 'Internados' ? 'Status / Procedência' : 'Destino';
+        corpo = `
+          <div class="mb-3">${kpiMini('TOTAL', data.linhas.length)}</div>
+          <div class="table-responsive">
+            <table class="table table-sm tabela-setores align-middle">
+              <thead><tr><th>Nome</th><th>Setor</th><th>${titulo}</th><th>${colExtra}</th></tr></thead>
+              <tbody>${data.linhas.map(l => `<tr><td>${l.nome}</td><td>${l.setor}</td><td>${l.entrada || l.data}</td><td>${l.status ? (l.status + (l.procedencia ? ' · ' + l.procedencia : '')) : (l.destino || '-')}</td></tr>`).join('') || `<tr><td colspan="4" class="text-muted text-center">Nenhum registro no período.</td></tr>`}</tbody>
+            </table>
+          </div>`;
+      }
+
+      document.getElementById('resultadoRelatorio').innerHTML = `<div id="areaImpressao">${cab}${corpo}</div>`;
+    }
+
+    function kpiMini(label, valor) {
+      return `<div class="col-md-3"><div class="card kpi-clean p-3 h-100" style="--accent:#0FA394;"><small>${label}</small><h4 class="fw-bold mb-0">${valor}</h4></div></div>`;
+    }
+
+    function imprimirRelatorio() {
+      if (!ultimoRelatorio) return;
+      const area = document.getElementById('areaImpressao');
+      if (!area) return;
+      const win = window.open('', '_blank');
+      win.document.write(`
+        <!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+        <title>Relatório Gerencial - Natus</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+        <style>
+          body { padding: 24px; font-family: Arial, sans-serif; }
+          .kpi-clean { border-radius: 10px; border: 1px solid #dee2e6; padding: .75rem; }
+          .kpi-clean small { color:#94A3B8; font-weight:600; }
+          table { font-size: 13px; }
+          @media print { .no-print { display:none; } }
+        </style></head><body>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h4 class="fw-bold mb-0">Relatório Gerencial — Natus</h4>
+          <button class="btn btn-dark btn-sm no-print" onclick="window.print()">Imprimir / Salvar PDF</button>
+        </div>
+        ${area.innerHTML}
+        </body></html>`);
+      win.document.close();
+      setTimeout(() => win.print(), 400);
+    }
+  </script>
+</body>
+</html>

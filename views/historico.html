@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <link rel="icon" type="image/png" href="/assets/img-e02cd94544.png">
+  <title>Natus - Histórico</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+  <style>
+    .paciente-card { cursor: pointer; border-radius: 10px; transition: transform .1s, box-shadow .1s; }
+    .paciente-card:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0,0,0,.1) !important; }
+    .timeline { position: relative; padding-left: 2rem; }
+    .timeline::before {
+      content: ''; position: absolute; left: 0.6rem; top: 0.4rem; bottom: 0.4rem; width: 2px; background: #dee2e6;
+    }
+    .timeline-item { position: relative; margin-bottom: 1.5rem; }
+    .timeline-dot {
+      position: absolute; left: -2rem; top: 0.25rem; width: 1.1rem; height: 1.1rem; border-radius: 50%;
+      background: var(--natus-blue); border: 3px solid #fff; box-shadow: 0 0 0 2px var(--natus-blue);
+    }
+    .timeline-item.saida-alta .timeline-dot { background: #198754; box-shadow: 0 0 0 2px #198754; }
+    .timeline-item.saida-obito .timeline-dot { background: #212529; box-shadow: 0 0 0 2px #212529; }
+    .timeline-item.saida-transferencia .timeline-dot { background: #fd7e14; box-shadow: 0 0 0 2px #fd7e14; }
+    .timeline-item.ativo .timeline-dot { background: var(--natus-cyan); box-shadow: 0 0 0 2px var(--natus-cyan); }
+
+    /* Cabeçalho timbrado: só aparece na impressão/PDF, nunca na tela. */
+    #cabecalhoImpressao { display: none; }
+
+    @media print {
+      @page { size: A4; margin: 16mm 14mm; }
+      body { background: #fff !important; }
+      nav, #cardBusca, #resultados-col, #btnImprimirHistorico,
+      .form-text { display: none !important; }
+      .container-fluid { padding: 0 !important; }
+      .row.g-4 { display: block !important; }
+      .col-lg-8 { width: 100% !important; max-width: 100% !important; flex: 0 0 100% !important; }
+      #areaVazia { display: none !important; }
+      #cabecalhoImpressao { display: block !important; }
+      .card { box-shadow: none !important; border: 1px solid #ccc !important; }
+      .timeline-item { break-inside: avoid; page-break-inside: avoid; }
+      .badge { border: 1px solid #999; }
+    }
+  </style>
+
+
+  <script src="/natus-rpc.js"></script>
+  <!--@head-->
+</head>
+<body class="nt-body">
+
+<!--@rail-->
+<div class="natus-content">
+
+
+  <header class="nt-topbar">
+    <div>
+      <div class="nt-crumb"><span>Natus</span><i class="bi bi-chevron-right"></i><span>Prontuário</span></div>
+      <h1 class="nt-title">Histórico de pacientes</h1>
+    </div>
+    <div class="nt-actions">
+      <button class="btn btn-light btn-sm" onclick="voltarParaOperacional()"><i class="bi bi-arrow-left me-1"></i>Tela operacional</button>
+      <!--@useractions-->
+    </div>
+  </header>
+
+  <div class="container-fluid px-4 pb-5">
+    <!-- Busca -->
+    <div class="card border-0 mb-4 p-3" id="cardBusca">
+      <label class="form-label fw-semibold">Buscar paciente pelo nome</label>
+      <div class="input-group">
+        <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+        <input type="text" id="inputBuscaPaciente" class="form-control" placeholder="Digite ao menos 2 letras do nome..." autocomplete="off">
+        <button class="btn btn-primary fw-semibold" type="button" onclick="buscarPacientes()">
+          <i class="bi bi-search me-1"></i> Buscar
+        </button>
+      </div>
+      <div class="form-text">A busca localiza qualquer trecho do nome do paciente/RN, em todos os setores.</div>
+    </div>
+
+    <div class="row g-4">
+      <!-- Resultados da busca -->
+      <div class="col-lg-4" id="resultados-col">
+        <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-people-fill me-2"></i>Resultados</h6>
+        <div id="statusBusca" class="text-muted small mb-2">Digite um nome e clique em Buscar.</div>
+        <div id="listaResultados" class="d-flex flex-column gap-2"></div>
+      </div>
+
+      <!-- Linha do tempo do paciente selecionado -->
+      <div class="col-lg-8">
+        <div id="areaHistorico" class="d-none">
+          <!-- Cabeçalho timbrado - visível apenas na impressão/PDF -->
+          <div id="cabecalhoImpressao">
+            <div class="d-flex align-items-center gap-3 mb-2" style="border-bottom: 2px solid #0d6a6a; padding-bottom: 10px;">
+              <img src="/assets/img-57fb08fb02.png" alt="Maternidade Ana Braga" style="height: 64px;">
+              <div>
+                <div class="fw-bold" style="font-size: 1.1rem;">Maternidade Ana Braga</div>
+                <div class="small text-muted">Relatório de Histórico de Internação · Serviço de Arquivo Médico e Estatístico (SAME)</div>
+              </div>
+              <div class="ms-auto text-end small text-muted">
+                Emitido em <span id="printDataEmissao"></span><br>
+                Por: <?!= nomeUsuario ?>
+              </div>
+            </div>
+          </div>
+
+          <div class="card shadow-sm border-0 p-3 mb-4">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+              <div>
+                <h5 class="fw-bold mb-1" id="histNome">-</h5>
+                <div class="text-muted small">
+                  Nº Prontuário: <span id="histProntuario">-</span> ·
+                  <span id="histSexo">-</span> · Nascimento: <span id="histNascimento">-</span>
+                </div>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="badge bg-primary fs-6" id="histTotalInternacoes">0 internação(ões)</span>
+                <button type="button" class="btn btn-outline-secondary btn-sm fw-semibold" id="btnImprimirHistorico" onclick="imprimirHistorico()">
+                  <i class="bi bi-printer-fill me-1"></i> Imprimir / Salvar PDF
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <h6 class="fw-bold text-secondary mb-3"><i class="bi bi-hospital me-2"></i>Linha do Tempo da Internação</h6>
+          <div id="timelineContainer" class="timeline"></div>
+        </div>
+
+        <div id="areaVazia" class="text-center text-muted py-5">
+          <i class="bi bi-person-lines-fill" style="font-size: 3rem;"></i>
+          <p class="mt-2">Busque e selecione um paciente para ver o histórico completo da internação.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    const token = "<?!= token ?>";
+    const appUrl = "<?!= appUrl ?>";
+    const perfilUsuario = "<?!= perfilUsuario ?>";
+    const setorUsuario = "<?!= setorUsuario ?>";
+
+    function voltarParaOperacional() {
+      const p = perfilUsuario.trim().toUpperCase();
+      if (p === 'NIR' || p === 'GESTÃO') {
+        window.top.location.href = `${appUrl}?view=nir&token=${token}`;
+      } else {
+        window.top.location.href = `${appUrl}?view=painel&token=${token}&setor=${encodeURIComponent(setorUsuario)}`;
+      }
+    }
+
+    function imprimirHistorico() {
+      window.print();
+    }
+
+    document.getElementById('inputBuscaPaciente').addEventListener('keyup', (e) => {
+      if (e.key === 'Enter') buscarPacientes();
+    });
+
+    function buscarPacientes() {
+      const termo = document.getElementById('inputBuscaPaciente').value.trim();
+      const statusEl = document.getElementById('statusBusca');
+      const listaEl = document.getElementById('listaResultados');
+
+      if (termo.length < 2) {
+        statusEl.textContent = 'Digite ao menos 2 letras do nome para buscar.';
+        listaEl.innerHTML = '';
+        return;
+      }
+
+      statusEl.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Buscando...';
+      listaEl.innerHTML = '';
+
+      google.script.run
+        .withSuccessHandler(renderizarResultados)
+        .withFailureHandler(err => {
+          statusEl.textContent = '';
+          alert(err && err.message ? err.message : 'Não foi possível buscar pacientes.');
+        })
+        .buscarPacientesPorNome(token, termo);
+    }
+
+    function renderizarResultados(pacientes) {
+      const statusEl = document.getElementById('statusBusca');
+      const listaEl = document.getElementById('listaResultados');
+
+      if (!pacientes || !pacientes.length) {
+        statusEl.textContent = 'Nenhum paciente encontrado para esse nome.';
+        listaEl.innerHTML = '';
+        return;
+      }
+
+      statusEl.textContent = `${pacientes.length} paciente(s) encontrado(s).`;
+      listaEl.innerHTML = pacientes.map(p => `
+        <div class="card paciente-card shadow-sm border-0 p-2" onclick="selecionarPaciente('${p.idPaciente}')">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <strong>${p.nome}</strong>
+              <div class="small text-muted">${p.sexo === 'F' ? 'Feminino' : 'Masculino'} · Nasc: ${p.dataNascimento || '-'}</div>
+            </div>
+            <span class="badge bg-secondary">${p.totalInternacoes} internação(ões)</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function selecionarPaciente(idPaciente) {
+      const areaHistorico = document.getElementById('areaHistorico');
+      const areaVazia = document.getElementById('areaVazia');
+      const timelineContainer = document.getElementById('timelineContainer');
+
+      timelineContainer.innerHTML = '<div class="text-muted small"><span class="spinner-border spinner-border-sm me-1"></span> Carregando histórico...</div>';
+      areaVazia.classList.add('d-none');
+      areaHistorico.classList.remove('d-none');
+
+      google.script.run
+        .withSuccessHandler(renderizarHistorico)
+        .withFailureHandler(err => {
+          alert(err && err.message ? err.message : 'Não foi possível carregar o histórico do paciente.');
+        })
+        .obterHistoricoPaciente(token, idPaciente);
+    }
+
+    function iconePorTipoSaida(tipo) {
+      if (tipo === 'Alta') return { classe: 'saida-alta', icone: 'bi-box-arrow-right', label: 'Alta' };
+      if (tipo === 'Obito') return { classe: 'saida-obito', icone: 'bi-x-octagon-fill', label: 'Óbito' };
+      if (tipo === 'Transferencia') return { classe: 'saida-transferencia', icone: 'bi-arrow-left-right', label: 'Transferência' };
+      return { classe: 'ativo', icone: 'bi-hospital-fill', label: 'Internação Ativa' };
+    }
+
+    function renderizarHistorico(dados) {
+      document.getElementById('histNome').textContent = dados.paciente.nome;
+      document.getElementById('histProntuario').textContent = dados.paciente.numeroProntuario || 'Não informado';
+      document.getElementById('histSexo').textContent = dados.paciente.sexo === 'F' ? 'Feminino' : 'Masculino';
+      document.getElementById('histNascimento').textContent = dados.paciente.dataNascimento || '-';
+      document.getElementById('histTotalInternacoes').textContent = `${dados.internacoes.length} internação(ões)`;
+      document.getElementById('printDataEmissao').textContent = new Date().toLocaleString('pt-BR');
+
+      const timelineContainer = document.getElementById('timelineContainer');
+
+      if (!dados.internacoes.length) {
+        timelineContainer.innerHTML = '<p class="text-muted">Nenhuma internação encontrada para este paciente.</p>';
+        return;
+      }
+
+      timelineContainer.innerHTML = dados.internacoes.map(i => {
+        const situacao = iconePorTipoSaida(i.statusInternacao === 'Ativo' ? '' : i.tipoSaida);
+        const pesoSaidaHtml = i.pesoSaidaGramas !== '' && i.pesoSaidaGramas !== null && i.pesoSaidaGramas !== undefined
+          ? `<li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Peso na Saída:</span><strong>${i.pesoSaidaGramas}g</strong></li>`
+          : '';
+
+        return `
+          <div class="timeline-item ${situacao.classe}">
+            <div class="timeline-dot"></div>
+            <div class="card shadow-sm border-0 p-3">
+              <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
+                <h6 class="fw-bold mb-0"><i class="bi ${situacao.icone} me-1"></i> ${i.setor} · ${i.leito}</h6>
+                <span class="badge ${i.statusInternacao === 'Ativo' ? 'bg-info text-dark' : 'bg-secondary'}">${i.statusInternacao}</span>
+              </div>
+              <ul class="list-group list-group-flush small">
+                <li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Entrada:</span><strong>${i.dataHoraEntrada || '-'}</strong></li>
+                <li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Procedência:</span><strong>${i.procedencia || '-'}</strong></li>
+                <li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Tipo de Parto:</span><strong>${i.tipoParto || '-'}</strong></li>
+                <li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Peso ao Nascer:</span><strong>${i.pesoNascer || '-'}</strong></li>
+                ${i.tipoSaida ? `
+                <li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Tipo de Saída:</span><strong>${i.tipoSaida}</strong></li>
+                <li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Destino:</span><strong>${i.destinoSaida || '-'}</strong></li>
+                <li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Data/Hora da Saída:</span><strong>${i.dataHoraSaida || '-'}</strong></li>
+                ${pesoSaidaHtml}
+                ` : ''}
+                ${i.observacaoSaida ? `<li class="list-group-item bg-transparent px-0 py-1"><span class="text-muted">Observação:</span> ${i.observacaoSaida}</li>` : ''}
+              </ul>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  </script>
+
+<script id="natus-premium-shared-js">
+function natusGo(view){
+  const params=new URLSearchParams();
+  params.set('view',view); params.set('token',token);
+  if(view==='painel' && typeof setorAtualParam!=='undefined' && setorAtualParam) params.set('setor',setorAtualParam);
+  window.top.location.href=`${appUrl}?${params.toString()}`;
+}
+function natusSair(){
+  google.script.run.withSuccessHandler(()=>window.top.location.href=appUrl).encerrarSessao(token);
+}
+</script>
+
+</div>
+</body>
+</html>

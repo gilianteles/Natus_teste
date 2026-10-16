@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Natus - Kanban NIR</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+
+  <script src="/natus-rpc.js"></script>
+  <!--@head-->
+</head>
+<body class="nt-body">
+<div class="app-shell">
+  <!--@rail-->
+
+  <section class="content">
+    <header class="nt-topbar">
+      <div>
+        <div class="nt-crumb"><span>Natus</span><i class="bi bi-chevron-right"></i><span>Regulação</span></div>
+        <h1 class="nt-title">Kanban · Regulação de Leitos (NIR)</h1>
+      </div>
+      <div class="nt-actions">
+        <span class="nt-chip"><span class="nt-live"></span><span id="kbSync">Sincronizado</span></span>
+        <button class="btn btn-light btn-sm" onclick="carregarKanban()" title="Atualizar quadro"><i class="bi bi-arrow-clockwise me-1"></i>Atualizar</button>
+        <!--@useractions-->
+      </div>
+    </header>
+
+    <main class="main nt-page">
+      <div class="hero">
+        <div class="position-relative" style="z-index:1">
+          <h2>Fluxo de regulação em tempo real</h2>
+          <p>Arraste os cards entre as colunas para atualizar o status operacional da paciente e do giro de leito. Os cards são alimentados pelo ACR e pelas internações ativas.</p>
+        </div>
+      </div>
+
+      <div class="kb-filtros">
+        <div class="input-group input-group-sm w-auto" style="min-width:280px">
+          <span class="input-group-text"><i class="bi bi-search"></i></span>
+          <input type="search" class="form-control" id="kbBusca" placeholder="Buscar por nome, CPF ou Cartão SUS" oninput="carregarKanban()">
+        </div>
+        <select class="form-select form-select-sm w-auto" id="kbPrioridade" onchange="carregarKanban()">
+          <option value="">Todas as prioridades</option>
+          <option value="Urgente">Urgente</option>
+          <option value="Prioridade">Prioridade</option>
+          <option value="Rotina">Rotina</option>
+        </select>
+        <button class="btn btn-natus btn-sm fw-semibold" onclick="abrirNovoCardKanban()"><i class="bi bi-plus-lg me-1"></i>Novo card</button>
+        <div class="form-check form-switch ms-auto mb-0">
+          <input class="form-check-input" type="checkbox" id="kbAuto" checked>
+          <label class="form-check-label small fw-semibold" for="kbAuto">Atualização automática</label>
+        </div>
+        <span class="kb-legenda ms-2">
+          <span><i style="background:var(--bad)"></i>Urgente</span>
+          <span><i style="background:var(--warn)"></i>Prioridade</span>
+          <span><i style="background:var(--info)"></i>Rotina</span>
+        </span>
+      </div>
+
+      <div class="kb-board" id="kbBoard">
+        <div class="col-12"><div class="empty"><div class="spinner-border spinner-border-sm text-info"></div><div class="mt-2">Carregando o quadro de regulação...</div></div></div>
+      </div>
+    </main>
+  </section>
+</div>
+
+<!-- Detalhe do card -->
+<div class="modal fade" id="modalCardKanban" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header bg-danger text-white">
+        <h5 class="modal-title fw-bold"><i class="bi bi-person-badge me-2"></i>Regulação da paciente</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="kbDetalheBody"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Novo card -->
+<div class="modal fade" id="modalNovoCard" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header natus"><h5 class="modal-title fw-bold"><i class="bi bi-plus-square me-2"></i>Adicionar card ao Kanban</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="alert alert-info small">Use esta opção para pedidos de regulação que ainda não passaram pelo ACR. A paciente entra em <b>Aguardando Avaliação</b>.</div>
+        <label class="form-label fw-semibold" for="kbBuscaPaciente">Buscar paciente pelo nome</label>
+        <div class="input-group mb-3">
+          <input type="text" class="form-control" id="kbBuscaPaciente" placeholder="Digite ao menos 2 letras do nome">
+          <button class="btn btn-natus" type="button" onclick="kbBuscarPaciente()"><i class="bi bi-search me-1"></i>Buscar</button>
+        </div>
+        <div id="kbResultadoPaciente" class="mb-3"></div>
+        <div class="row g-2">
+          <div class="col-md-6"><label class="form-label" for="kbNovoPrioridade">Prioridade</label>
+            <select class="form-select" id="kbNovoPrioridade"><option value="Rotina">Rotina</option><option value="Prioridade">Prioridade</option><option value="Urgente">Urgente</option></select>
+          </div>
+          <div class="col-md-6"><label class="form-label" for="kbNovaColuna">Coluna</label>
+            <select class="form-select" id="kbNovaColuna"><option value="aguardando">Aguardando Avaliação (Triagem/ACR)</option><option value="documentacao">Aguardando Documentação</option></select>
+          </div>
+          <div class="col-12"><label class="form-label" for="kbNovaObs">Observação</label><input class="form-control" id="kbNovaObs" placeholder="Ex.: vaga solicitada por telefone — Hospital X"></div>
+        </div>
+      </div>
+      <div class="modal-footer"><button class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button class="btn btn-natus fw-semibold" type="button" onclick="kbSalvarNovoCard()"><i class="bi bi-check-lg me-1"></i>Adicionar card</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container position-fixed bottom-0 end-0 p-3" id="kbToasts"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  const token = "<?!= token ?>", appUrl = "<?!= appUrl ?>";
+  window.KB = { token: token, appUrl: appUrl };
+</script>
+</body>
+</html>
