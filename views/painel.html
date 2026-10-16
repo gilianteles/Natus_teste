@@ -974,20 +974,47 @@
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalInternacao')).show();
     }
 
+    let trocaLeitoPendente = false;
+    document.getElementById('modalTrocaLeito').addEventListener('hide.bs.modal', (e) => {
+      if (trocaLeitoPendente) e.preventDefault();
+    });
     document.getElementById('formTrocaLeito').addEventListener('submit', (e) => {
       e.preventDefault();
-      const btn = e.submitter;
-      travarBotao(btn, 'Trocando Leito...');
+      if (trocaLeitoPendente) return;
+      const btn = e.submitter || e.currentTarget.querySelector('button[type="submit"]');
       const payload = {
         idInternacao: document.getElementById('trocaIdInternacao').value,
         novoLeitoId: document.getElementById('trocaNovoLeito').value,
         usuario: "<?!= nomeUsuario ?>"
       };
-      google.script.run.withSuccessHandler(() => {
-        bootstrap.Modal.getInstance(document.getElementById('modalTrocaLeito')).hide();
+      if (!payload.idInternacao || !payload.novoLeitoId) {
+        alert('Selecione uma internação e um leito disponível.');
+        return;
+      }
+      trocaLeitoPendente = true;
+      travarBotao(btn, 'Trocando Leito...');
+      const finalizar = () => {
+        trocaLeitoPendente = false;
+        liberarBotao(btn, 'Confirmar Troca');
+      };
+      const falha = err => {
+        finalizar();
+        // Uma falha de transporte não prova que a gravação falhou. Reconsulta apenas.
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('modalTrocaLeito')).hide();
         carregarDashboard();
-      }).withFailureHandler(err => liberarBotao(btn, 'Confirmar Troca', err))
-        .trocarLeito(payload);
+        alert((err && err.message) || 'Não foi possível confirmar a troca. Confira os leitos antes de tentar novamente.');
+      };
+      try {
+        google.script.run.withSuccessHandler(resultado => {
+          finalizar();
+          if (!resultado || resultado.success !== true) {
+            falha(new Error('Não foi possível confirmar a troca. Confira os leitos antes de tentar novamente.'));
+            return;
+          }
+          bootstrap.Modal.getOrCreateInstance(document.getElementById('modalTrocaLeito')).hide();
+          carregarDashboard();
+        }).withFailureHandler(falha).trocarLeito(payload);
+      } catch (err) { falha(err); }
     });
 
     function sair() {

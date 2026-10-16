@@ -5,22 +5,32 @@
     return new URLSearchParams(location.search).get('token') || '';
   }
   async function chamar(nome, args) {
-    let resp;
+    // Limite restrito à troca de leito; não muda os demais RPCs.
+    const controle = nome === 'trocarLeito' ? new AbortController() : null;
+    const timer = controle ? setTimeout(() => controle.abort(), 35000) : null;
     try {
-      resp = await fetch('/api/rpc/' + encodeURIComponent(nome), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tokenAtual() },
-        body: JSON.stringify({ args: args })
-      });
-    } catch (e) { throw new Error('Sem conexão com o servidor. Verifique a internet e tente novamente.'); }
-    let corpo = null;
-    try { corpo = await resp.json(); } catch (e) {}
-    if (resp.status === 401 && nome !== 'autenticar' && nome !== 'encerrarSessao') {
-      try { sessionStorage.clear(); } catch (e) {}
-      window.top.location.href = '/?view=login';
-    }
-    if (!resp.ok || !corpo || corpo.ok !== true) throw new Error((corpo && corpo.error) || 'Falha na comunicação com o servidor.');
-    return corpo.data;
+      let resp;
+      try {
+        resp = await fetch('/api/rpc/' + encodeURIComponent(nome), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tokenAtual() },
+          body: JSON.stringify({ args: args }),
+          ...(controle ? { signal: controle.signal } : {})
+        });
+      } catch (e) {
+        if (controle) throw new Error('Não foi possível confirmar a troca com o servidor. Ela pode ter sido concluída. Confira os leitos atualizados antes de tentar novamente.');
+        throw new Error('Sem conexão com o servidor. Verifique a internet e tente novamente.');
+      }
+      let corpo = null;
+      try { corpo = await resp.json(); } catch (e) {}
+      if (resp.status === 401 && nome !== 'autenticar' && nome !== 'encerrarSessao') {
+        try { sessionStorage.clear(); } catch (e) {}
+        window.top.location.href = '/?view=login';
+      }
+      if (!resp.ok || !corpo || corpo.ok !== true) throw new Error((corpo && corpo.error) ||
+        (controle ? 'Resposta não confirmada. A troca pode ter sido concluída. Confira os leitos antes de tentar novamente.' : 'Falha na comunicação com o servidor.'));
+      return corpo.data;
+    } finally { if (timer !== null) clearTimeout(timer); }
   }
   function runner(ok, falha) {
     return new Proxy({}, {
