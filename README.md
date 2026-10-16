@@ -84,6 +84,30 @@ negócio (UEN/vaga zero, binômio ALCON, censo às 24h, mortalidade, Método Can
   no Kanban** foi corrigida (o filtro por documento casava com CPF vazio) e agora é **insensível a acentos/caixa**; (3) o
   **Regulador pode internar a paciente direto pelo card** (`internarCardKanban`), escolhendo setor e leito sem redigitar dados.
 
+### FASE 6 — Consulta CPF (CADSUS), painel de chamadas (TV) e correções de cálculo
+- **Consulta por CPF / CADSUS** (`lib/cadsus.js`, rota `GET /api/cadsus?cpf=...` e RPC `buscarCadsusPorCpf`): o servidor atua
+  como **proxy** — as credenciais da fonte externa ficam **apenas no backend** (`CADSUS_API_URL`/`CADSUS_API_TOKEN`, opcionais).
+  Sem fonte externa configurada, consulta a **base interna** do Natus. Devolve **nome, data de nascimento, nome da mãe, CNS** e
+  o status de internação ativa; trata **CPF não encontrado** e **rede instável** com mensagens claras. No ACR, o botão
+  **"Buscar no SUS"** preenche o formulário com estado de carregamento; o campo **Nome da mãe** passou a existir no cadastro
+  (`pacientes.nome_mae`, migração idempotente).
+- **Painel de chamadas TV/recepção** (`views/chamada.html` + `public/natus-chamada.js`, módulo `lib/chamadas.js`, tabela
+  `chamadas`): página **`/?view=chamada`** (atalho `/chamada`) com layout responsivo de TV — **"Chamada Atual"** (senha +
+  paciente + consultório) e **"Últimas chamadas"**. Atualização por **polling a cada 4 s**, com **alerta sonoro** e **anúncio por
+  voz** (`speechSynthesis`). A leitura é **pública** e exibe apenas o **primeiro nome + inicial** (privacidade/LGPD). Para
+  operadores **autenticados**, aparece o **console** com **"Chamar próxima"**, **"Chamar novamente"** (incrementa as repetições)
+  e **finalizar**. O ACR ganhou a ação **Chamar** em cada linha da fila.
+- **Correções de relatório/BI** (`lib/calc.js` + `lib/bi.js`):
+  (1) **período parcial**: os indicadores deixaram de contar meses inteiros — há `calcularIndicadoresPeriodo` que recorta cada
+  métrica exatamente em `[dataInicial, dataFinal]`;
+  (2) **ALCON (Mãe + RN)**: a admissão conjunta passa a contar como **uma única internação** (episódio por `id_binomio`, com
+  união de MAE+RN por leito/intervalo para dados legados) e a ocupação usa **leito-dia** (sem duplicar a Mãe e o RN);
+  (3) **trocas de leito**: cada `trocarLeito` grava **auditoria em `trocas_leito`** (origem/destino/data), preservando a
+  reconstrução histórica da ocupação;
+  (4) **indicadores neonatais**: a **Mãe é excluída** dos denominadores específicos de RN (faixa de peso e sexo) nos setores
+  neonatais; corrigido também um bug de acentuação em `normalizarParto` (cesárea/fórceps iam para "Outros").
+
+
 ## Implantação (≈10 min)
 1. **Banco**: crie um PostgreSQL gratuito (Neon, Supabase ou Vercel Postgres, região São Paulo/`gru1` se disponível) e copie a `DATABASE_URL` (versão *pooled*).
 2. **GitHub**: `git init && git add . && git commit -m "Natus" && git remote add origin <repo> && git push -u origin main`.
@@ -109,7 +133,7 @@ convertidas a scrypt no 1º login), Pele a Pele e Indicadores. Roda em transaç�
 
 ## Desenvolvimento local
 `npm run dev` (http://localhost:3000, precisa de `DATABASE_URL`) ou `vercel dev`.
-`npm test` executa 73 verificações de ponta a ponta (inclui ACR, Kanban e o bloqueio de cadastro por perfil) — **apaga os dados do banco apontado**; use um banco de teste.
+`npm test` executa a bateria completa de verificações de ponta a ponta (inclui ACR, Kanban, PEP, BI, CADSUS e o painel de chamadas, além do bloqueio de cadastro por perfil) — **apaga os dados do banco apontado**; use um banco de teste.
 
 ## Segurança (diferenças em relação ao original)
 - Todas as chamadas exigem sessão válida (expira em 12 h, `SESSION_HOURS`); perfis NIR/SAME/GESTÃO e restrição por setor são aplicados **no servidor**, não só na tela.
@@ -117,8 +141,14 @@ convertidas a scrypt no 1º login), Pele a Pele e Indicadores. Roda em transaç�
 - Senhas com scrypt + sal (o SHA-256 sem sal da planilha é aceito apenas para migração); bloqueio após 8 falhas/15 min; senha mínima de 6 caracteres.
 - O nome do usuário nos logs de auditoria vem da sessão (não do navegador). Erros técnicos não são expostos ao usuário.
 - Escritas são transações com trava global (`pg_advisory_xact_lock`), substituindo o `LockService`.
-- O token continua na URL (como no original). `Referrer-Policy: same-origin` evita vazamento; para endurecer mais, migrar para cookie HttpOnly.
+- A sessão vive em **cookie HttpOnly** (`natus_sessao`, `SameSite=Lax`; `Secure` em HTTPS): o token **não trafega mais na URL**. O token por `Authorization: Bearer`/`?token=` é aceito apenas por compatibilidade com links antigos.
+- As permissões da sessão são **revalidadas a cada requisição** contra o cadastro do usuário: mudar perfil/setor/nível administrativo ou inativar/remover o usuário revoga o acesso na hora.
+- **CSP** aplicada nas páginas (bloqueia `object-src`, fixa `base-uri`/`frame-ancestors`/`form-action`); todo texto dinâmico é escapado no servidor (`escaparHtml`/`jsonSeguro`) e no cliente (`esc`), evitando XSS armazenado/refletido.
+- A **evolução clínica SOAP nunca é apagada fisicamente**: a exclusão é lógica (`excluido`), preservando o histórico/auditoria do prontuário.
+- Consultas por CPF ao **CADSUS** passam por um **proxy de servidor** (`lib/cadsus.js` / `/api/cadsus`): nenhuma credencial de API fica no front-end. Sem `CADSUS_API_URL` configurada, usa a base interna do Natus.
+- Escritas são transações com trava global (`pg_advisory_xact_lock`), substituindo o `LockService`.
 - Fuso fixo America/Manaus (definido no código; a Vercel não permite a variável `TZ`).
+- Variáveis opcionais do proxy CADSUS: `CADSUS_API_URL` (com `{cpf}`), `CADSUS_API_TOKEN` e `CADSUS_TIMEOUT_MS`.
 
 ## Observações sobre regras portadas sem alteração
 Mantidas como no original; vale revisar com a equipe:

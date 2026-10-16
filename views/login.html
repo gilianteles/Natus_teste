@@ -481,9 +481,11 @@
           }
           showMessage('Acesso autorizado. Abrindo o NATUS...', 'success');
           button.disabled = true;
+          // Segurança: a sessão é criada em cookie HttpOnly no servidor (Set-Cookie). O token NÃO
+          // trafega mais na URL. Perfis de gestão entram no painel NIR; os demais, no seu setor.
           const destino = (res.perfil === 'NIR' || res.perfil === 'Gestão' || res.perfil === 'Administrador' || res.administrador === true)
-            ? '/?view=nir&token=' + encodeURIComponent(res.token)
-            : '/?token=' + encodeURIComponent(res.token);
+            ? '/?view=nir'
+            : '/';
           window.top.location.href = destino;
         })
         .withFailureHandler(function (erro) {

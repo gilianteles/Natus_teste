@@ -54,6 +54,7 @@
     el('acrSexo').value = (pac.sexo === 'M' ? 'M' : 'F');
     el('acrCpf').value = pac.cpf ? mascaraCPF(pac.cpf) : '';
     el('acrCartaoSus').value = pac.cartaoSus || '';
+    el('acrNomeMae').value = pac.nomeMae || '';
     el('acrTelefone').value = pac.telefone || '';
     el('acrProntuario').value = pac.numeroProntuario || '';
   }
@@ -109,6 +110,43 @@
     temporizador = setTimeout(function () { buscarDocumento(false); }, 450);
   }
 
+  /* ---------- FASE 6: consulta do CPF na base do SUS (CADSUS) ----------
+     O backend atua como proxy (as credenciais ficam no servidor); preenche automaticamente
+     nome, data de nascimento, nome da mãe e Cartão SUS. Trata CPF não encontrado e rede instável. */
+  function buscarSUS() {
+    var cpf = soDigitos((el('acrCpf').value || el('acrDocumento').value));
+    if (cpf.length !== 11) { status('Digite um CPF válido (11 dígitos) para consultar o SUS.', 'erro'); el('acrCpf').focus(); return; }
+    var btn = el('acrBtnSus'), rotulo = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Consultando...'; }
+    status('Consultando o SUS (CADSUS)... aguarde.', '');
+    google.script.run
+      .withSuccessHandler(function (res) {
+        if (btn) { btn.disabled = false; btn.innerHTML = rotulo; }
+        if (res && res.encontrado && res.paciente) {
+          var p = res.paciente;
+          if (p.idPaciente) el('acrIdPaciente').value = p.idPaciente;
+          if (p.nome) el('acrNome').value = p.nome;
+          if (p.dataNascimento) el('acrNasc').value = p.dataNascimento;
+          if (p.nomeMae) el('acrNomeMae').value = p.nomeMae;
+          if (p.cartaoSus) el('acrCartaoSus').value = p.cartaoSus;
+          if (p.cpf) el('acrCpf').value = mascaraCPF(p.cpf);
+          if (p.sexo) el('acrSexo').value = p.sexo;
+          if (p.telefone) el('acrTelefone').value = p.telefone;
+          renderResumo(p, res.internacaoAtiva, null);
+          var origem = res.origem === 'cadsus' ? 'base nacional (CADSUS)'
+            : res.origem === 'local+cadsus' ? 'base interna do Natus + CADSUS' : 'base interna do Natus';
+          status('Dados preenchidos a partir da ' + origem + '. Confira antes de registrar.' + (res.aviso ? ' ' + res.aviso : ''), 'ok');
+        } else {
+          status((res && res.aviso) || 'Nenhum registro encontrado no SUS para este CPF. Preencha os dados manualmente.', 'novo');
+        }
+      })
+      .withFailureHandler(function (err) {
+        if (btn) { btn.disabled = false; btn.innerHTML = rotulo; }
+        status((err && err.message) || 'Não foi possível consultar o SUS (rede instável?). Preencha os dados manualmente.', 'erro');
+      })
+      .buscarCadsusPorCpf({ cpf: cpf });
+  }
+
   /* ---------- formulário ---------- */
   function acrLimparFormulario(limparBusca) {
     el('formACR').reset();
@@ -132,6 +170,7 @@
       cartaoSus: soDigitos(el('acrCartaoSus').value),
       telefone: el('acrTelefone').value,
       numeroProntuario: el('acrProntuario').value,
+      nomeMae: el('acrNomeMae').value,
       queixa: el('acrQueixa').value,
       risco: (document.querySelector('input[name="acrRisco"]:checked') || {}).value || 'Azul',
       destino: el('acrDestino').value,
@@ -181,7 +220,11 @@
         '<td><div class="fw-semibold">' + esc(a.nome) + '</div><div class="small text-muted">' + esc(a.dataHoraEntrada) + ' · espera ' + espera + '</div>' + destino + '</td>' +
         '<td>' + riscoPill(a.risco) + '</td>' +
         '<td><select class="form-select form-select-sm" onchange="acrAtualizarStatus(\'' + a.idAtendimento + '\', this)">' + opcoesStatus(a.status) + '</select></td>' +
-        '<td class="text-end"><button class="btn btn-sm btn-light" title="Ver detalhes" onclick="acrDetalhes(\'' + a.idAtendimento + '\')"><i class="bi bi-eye"></i></button></td>' +
+        '<td class="text-end text-nowrap">' +
+          ((a.status === 'Aguardando' || a.status === 'Em Atendimento')
+            ? '<button class="btn btn-sm btn-natus me-1" title="Chamar para atendimento (aparece na TV)" onclick="acrChamar(\'' + a.idAtendimento + '\')"><i class="bi bi-megaphone"></i></button>'
+            : '') +
+          '<button class="btn btn-sm btn-light" title="Ver detalhes" onclick="acrDetalhes(\'' + a.idAtendimento + '\')"><i class="bi bi-eye"></i></button></td>' +
         '</tr>';
     }).join('');
     window.__acrFila = lista;
@@ -207,6 +250,16 @@
       .withSuccessHandler(function () { sel.disabled = false; toast('Situação atualizada para "' + (ROTULO_STATUS[novo] || novo) + '".', 'ok'); carregarFila(); })
       .withFailureHandler(function (err) { sel.disabled = false; sel.value = (window.__acrFila || []).filter(function (a) { return a.idAtendimento === id; }).map(function (a) { return a.status; })[0] || 'Aguardando'; toast(err && err.message ? err.message : 'Falha ao atualizar a situação.', 'erro'); })
       .atualizarAtendimentoACR(dados);
+  }
+
+  /* FASE 6: envia a chamada do paciente para o painel da TV (chamar próxima / chamar avulso). */
+  function acrChamar(id) {
+    var a = (window.__acrFila || []).filter(function (x) { return x.idAtendimento === id; })[0] || {};
+    var destino = a.destino || a.setorInternacao || prompt('Setor / consultório para chamar:', 'Recepção') || 'Recepção';
+    google.script.run
+      .withSuccessHandler(function (r) { toast('Chamada ' + (r && r.senha ? r.senha + ' ' : '') + 'enviada para a TV.', 'ok'); })
+      .withFailureHandler(function (err) { toast(err && err.message ? err.message : 'Falha ao enviar a chamada.', 'erro'); })
+      .chamarProximo({ idAtendimento: id, setor: destino, consultorio: destino });
   }
 
   function acrDetalhes(id) {
@@ -251,6 +304,7 @@
     el('acrCpf').addEventListener('input', function () { this.value = mascaraCPF(this.value); agendarBuscaAutomatica(); });
     el('acrCartaoSus').addEventListener('input', function () { this.value = soDigitos(this.value); agendarBuscaAutomatica(); });
     el('formACR').addEventListener('submit', salvarAtendimento);
+    if (el('acrBtnSus')) el('acrBtnSus').addEventListener('click', buscarSUS);
     carregarFila();
   }
 
@@ -258,6 +312,8 @@
   window.acrLimparFormulario = acrLimparFormulario;
   window.acrAtualizarStatus = acrAtualizarStatus;
   window.acrDetalhes = acrDetalhes;
+  window.acrChamar = acrChamar;
+  window.buscarSUS = buscarSUS;
   window.focarBuscaACR = focarBuscaACR;
   window.buscarDocumento = buscarDocumento;
 

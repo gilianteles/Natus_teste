@@ -10,10 +10,12 @@
     const timer = controle ? setTimeout(() => controle.abort(), 35000) : null;
     try {
       let resp;
+      const tk = tokenAtual();
       try {
         resp = await fetch('/api/rpc/' + encodeURIComponent(nome), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tokenAtual() },
+          credentials: 'same-origin',   // envia o cookie de sessão HttpOnly
+          headers: Object.assign({ 'Content-Type': 'application/json' }, tk ? { 'Authorization': 'Bearer ' + tk } : {}),
           body: JSON.stringify({ args: args }),
           ...(controle ? { signal: controle.signal } : {})
         });

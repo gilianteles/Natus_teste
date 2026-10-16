@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { validarSessao } = require('../lib/auth');
 const { ehPerfilNIR, ehPerfilAdministrativo, ehPerfilAdministrador } = require('../lib/regras');
+const { tokenDoCookie } = require('../lib/util');
 const shell = require('../lib/shell');
 
 const VIEWS = path.join(process.cwd(), 'views');
@@ -11,11 +12,12 @@ const carregar = n => (cache[n] = cache[n] || fs.readFileSync(path.join(VIEWS, n
 const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const TITULOS = { login: 'Natus - Login', nir: 'Natus - Painel NIR/SAME', dashboardgeral: 'Dashboard Geral - Natus', historico: 'Natus - Histórico de Pacientes',
   acr: 'Natus - ACR (Acolhimento e Classificação de Risco)', kanban: 'Natus - Kanban de Regulação (NIR)',
-  prontuario: 'Natus - Prontuário Eletrônico (PEP)', bi: 'Natus - Indicadores e BI Gerencial' };
+  prontuario: 'Natus - Prontuário Eletrônico (PEP)', bi: 'Natus - Indicadores e BI Gerencial',
+  chamada: 'Natus - Painel de Atendimento (TV)' };
 
 const ATIVO = { painel: 'painel', dashboard: 'dashboard', nir: 'nir', historico: 'historico', dashboardgeral: 'dashboardgeral', acr: 'acr', kanban: 'kanban', prontuario: 'prontuario', bi: 'bi' };
 // Scripts adicionais por tela (servidos de /public com cache-busting por data de modificação).
-const EXTRA = { painel: 'natus-painel.js', acr: 'natus-acr.js', kanban: 'natus-kanban.js', prontuario: 'natus-prontuario.js', bi: 'natus-bi.js' };
+const EXTRA = { painel: 'natus-painel.js', acr: 'natus-acr.js', kanban: 'natus-kanban.js', prontuario: 'natus-prontuario.js', bi: 'natus-bi.js', chamada: 'natus-chamada.js' };
 
 /* Placeholders dos views: <!--@head-->, <!--@rail-->, <!--@useractions-->; e as variáveis <?!= nome ?>. */
 function render(nome, vars, titulo, ctx) {
@@ -32,19 +34,50 @@ function render(nome, vars, titulo, ctx) {
   return html;
 }
 
+// Cabeçalhos de segurança. A CSP restringe origens, plugins e enquadramento; 'unsafe-inline' é
+// necessário porque as telas usam handlers inline e bibliotecas de CDN (Bootstrap/Chart.js).
+const CSP_APP = ["default-src 'self'",
+  "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+  "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com",
+  "font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com data:",
+  "img-src 'self' data:", "connect-src 'self'", "object-src 'none'", "base-uri 'self'",
+  "frame-ancestors 'self'", "form-action 'self'"].join('; ');
+const CSP_TV = CSP_APP.replace("frame-ancestors 'self'", "frame-ancestors *");
+
 module.exports = async function handler(req, res) {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  res.setHeader('Referrer-Policy', 'same-origin');   // o token trafega na URL: nunca vaza em Referer
+  res.setHeader('Referrer-Policy', 'same-origin');
+  res.setHeader('Content-Security-Policy', CSP_APP);
   try {
     const q = req.query || {};
-    const view = String(q.view || ''), token = String(q.token || '');
+    const view = String(q.view || '');
+    const tokenQuery = String(q.token || '');
+    // Segurança: o token deixa de trafegar na URL. A sessão vive em cookie HttpOnly; o parâmetro
+    // ?token= continua aceito apenas para compatibilidade (links antigos/sistemas legados).
+    const token = tokenQuery || tokenDoCookie(req.headers.cookie);
     const sessao = token ? await validarSessao(token) : null;
     const appUrl = '/';
+
+    // Painel de atendimento (TV/recepção): leitura PÚBLICA — exibe apenas o primeiro nome e o
+    // consultório. O console do operador só aparece para usuários autenticados.
+    if (view === 'chamada') {
+      res.setHeader('Content-Security-Policy', CSP_TV);
+      res.setHeader('X-Frame-Options', 'ALLOWALL');
+      return res.send(render('chamada', {
+        appUrl,
+        token: '',
+        autenticado: sessao ? '1' : '',
+        nomeOperador: sessao ? sessao.nome : '',
+        setorUsuario: sessao ? (sessao.setor || '') : ''
+      }, TITULOS.chamada, null));
+    }
     if (!sessao) return res.status(200).send(render('login', { appUrl }));
 
-    const base = { token, appUrl, nomeUsuario: sessao.nome, perfilUsuario: sessao.perfil, setorUsuario: sessao.setor || '' };
+    // Uma vez autenticado por cookie, os links internos não propagam mais o token na URL.
+    const tokenLinks = tokenQuery ? token : '';
+    const base = { token: tokenLinks, appUrl, nomeUsuario: sessao.nome, perfilUsuario: sessao.perfil, setorUsuario: sessao.setor || '' };
     const adm = ehPerfilAdministrativo(sessao.perfil), nir = ehPerfilNIR(sessao.perfil);
     const admin = ehPerfilAdministrador(sessao.perfil) || sessao.administrador === true;   // FASE 3: gestão de usuários
     const setorDe = padrao => (nir ? (String(q.setor || padrao).trim() || padrao) : sessao.setor);

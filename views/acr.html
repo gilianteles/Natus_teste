@@ -59,8 +59,9 @@
             <label class="form-label" for="acrDocumento">Documento</label>
             <input type="text" class="form-control" id="acrDocumento" inputmode="numeric" placeholder="Somente números" maxlength="20">
           </div>
-          <div class="col-md-4 d-flex gap-2">
+          <div class="col-md-4 d-flex gap-2 flex-wrap">
             <button class="btn btn-natus fw-semibold flex-fill" type="submit"><i class="bi bi-search me-1"></i>Buscar</button>
+            <button class="btn btn-outline-primary fw-semibold flex-fill" type="button" id="acrBtnSus" title="Consultar CPF na base do SUS (CADSUS)"><i class="bi bi-cloud-arrow-down me-1"></i>Buscar no SUS</button>
             <button class="btn btn-light fw-semibold" type="button" onclick="acrLimparFormulario(true)" title="Limpar / novo cadastro"><i class="bi bi-eraser"></i></button>
           </div>
           <div class="col-12"><div class="acr-doc-status" id="acrDocStatus" role="status" aria-live="polite"></div></div>
@@ -94,6 +95,10 @@
               <div class="col-md-4">
                 <label class="form-label" for="acrCartaoSus">Cartão SUS</label>
                 <input type="text" class="form-control" id="acrCartaoSus" inputmode="numeric" maxlength="20" placeholder="Número do CNS">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label" for="acrNomeMae">Nome da mãe</label>
+                <input type="text" class="form-control" id="acrNomeMae" maxlength="120" placeholder="Filiação (mãe)">
               </div>
               <div class="col-md-4">
                 <label class="form-label" for="acrTelefone">Telefone / WhatsApp</label>

@@ -4,9 +4,14 @@
   "functions": {
     "api/page.js": { "includeFiles": "views/**", "maxDuration": 30 },
     "api/rpc/[fn].js": { "maxDuration": 30 },
+    "api/cadsus.js": { "maxDuration": 15 },
     "api/health.js": { "maxDuration": 10 }
   },
-  "rewrites": [{ "source": "/", "destination": "/api/page" }],
+  "rewrites": [
+    { "source": "/", "destination": "/api/page" },
+    { "source": "/chamada", "destination": "/api/page?view=chamada" },
+    { "source": "/tv", "destination": "/api/page?view=chamada" }
+  ],
   "headers": [
     {
       "source": "/(.*)",

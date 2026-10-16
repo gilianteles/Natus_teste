@@ -222,7 +222,13 @@ CREATE TABLE IF NOT EXISTS evolucoes_soap (
   avaliacao       text NOT NULL DEFAULT '',
   plano           text NOT NULL DEFAULT '',
   registrado_por  text NOT NULL DEFAULT '',
-  criado_em       timestamp NOT NULL DEFAULT (now() AT TIME ZONE 'America/Manaus')
+  criado_em       timestamp NOT NULL DEFAULT (now() AT TIME ZONE 'America/Manaus'),
+  -- Segurança clínica: a evolução NUNCA é apagada fisicamente. Ao "excluir", o registro é marcado
+  -- como excluído e preservado (histórico/auditoria do prontuário), saindo das listagens padrão.
+  excluido        boolean NOT NULL DEFAULT false,
+  excluido_por    text NOT NULL DEFAULT '',
+  excluido_em     timestamp,
+  atualizado_em   timestamp
 );
 CREATE INDEX IF NOT EXISTS ix_soap_internacao ON evolucoes_soap(id_internacao, data_hora);
 CREATE INDEX IF NOT EXISTS ix_soap_paciente ON evolucoes_soap(id_paciente);
@@ -248,6 +254,51 @@ CREATE INDEX IF NOT EXISTS ix_presc_internacao ON prescricoes(id_internacao, dat
 CREATE INDEX IF NOT EXISTS ix_presc_paciente ON prescricoes(id_paciente);
 
 -- =====================================================================================
+-- FASE 6 — Painel de atendimento em tempo real (TV / recepção)
+-- Cada linha representa uma chamada (senha + paciente + consultório/setor) exibida nas TVs da
+-- recepção. O painel público lê apenas o primeiro nome (privacidade/LGPD); operadores
+-- autenticados podem "chamar próxima", "rechamar" e "finalizar".
+-- =====================================================================================
+CREATE TABLE IF NOT EXISTS chamadas (
+  id_chamada      text PRIMARY KEY,
+  id_paciente     text,
+  id_atendimento  text,                          -- referência (frouxa) ao atendimento do ACR
+  senha           text NOT NULL DEFAULT '',      -- senha de chamada exibida na TV (ex.: "A012")
+  nome_exibicao   text NOT NULL DEFAULT '',      -- primeiro nome + inicial (privacidade)
+  nome_completo   text NOT NULL DEFAULT '',      -- usado apenas no console do operador
+  setor           text NOT NULL DEFAULT '',      -- setor/consultório de destino
+  consultorio     text NOT NULL DEFAULT '',
+  destino         text NOT NULL DEFAULT '',
+  tipo            text NOT NULL DEFAULT 'Chamada' CHECK (tipo IN ('Chamada','Preferencial','Retorno')),
+  status          text NOT NULL DEFAULT 'Ativa' CHECK (status IN ('Ativa','Atendida','Cancelada')),
+  repeticoes      integer NOT NULL DEFAULT 1,    -- quantas vezes a chamada foi repetida ("Chamar novamente")
+  chamado_em      timestamp NOT NULL DEFAULT (now() AT TIME ZONE 'America/Manaus'),
+  chamado_por     text NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS ix_chamadas_status ON chamadas(status, chamado_em);
+CREATE INDEX IF NOT EXISTS ix_chamadas_paciente ON chamadas(id_paciente);
+
+-- =====================================================================================
+-- Auditoria de trocas de leito (mesmo setor): registra origem/destino com data/hora para que a
+-- reconstrução histórica da ocupação por leito não seja perdida quando internacoes.id_leito é
+-- atualizado. Alimentado por lib/operacoes.js::trocarLeito.
+-- =====================================================================================
+CREATE TABLE IF NOT EXISTS trocas_leito (
+  id_troca        text PRIMARY KEY,
+  id_internacao   text NOT NULL REFERENCES internacoes(id_internacao) ON DELETE CASCADE,
+  id_paciente     text NOT NULL DEFAULT '',
+  setor_nome      text NOT NULL DEFAULT '',
+  leito_origem    text,
+  numero_origem   text NOT NULL DEFAULT '',
+  leito_destino   text NOT NULL,
+  numero_destino  text NOT NULL DEFAULT '',
+  data_hora       timestamp NOT NULL,
+  registrado_por  text NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS ix_trocas_int ON trocas_leito(id_internacao);
+CREATE INDEX IF NOT EXISTS ix_trocas_data ON trocas_leito(data_hora);
+
+-- =====================================================================================
 -- Migrações incrementais (idempotentes) — aplicam as novas colunas em bancos já existentes.
 -- `npm run db:migrate` executa este arquivo inteiro, portanto funciona para instalações
 -- novas e para bancos antigos sem perder dados.
@@ -266,6 +317,15 @@ ALTER TABLE internacoes ADD COLUMN IF NOT EXISTS reanimacao  text NOT NULL DEFAU
 ALTER TABLE internacoes ADD COLUMN IF NOT EXISTS pulseira    text NOT NULL DEFAULT '';
 ALTER TABLE internacoes ADD COLUMN IF NOT EXISTS id_binomio  text NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS ix_int_binomio ON internacoes(id_binomio) WHERE id_binomio <> '';
+
+-- FASE 6 — nome da mãe (consulta CADSUS / ficha da puérpera) no cadastro da paciente.
+ALTER TABLE pacientes ADD COLUMN IF NOT EXISTS nome_mae text NOT NULL DEFAULT '';
+
+-- Segurança clínica — exclusão lógica das evoluções SOAP (preserva o histórico do prontuário).
+ALTER TABLE evolucoes_soap ADD COLUMN IF NOT EXISTS excluido      boolean NOT NULL DEFAULT false;
+ALTER TABLE evolucoes_soap ADD COLUMN IF NOT EXISTS excluido_por  text NOT NULL DEFAULT '';
+ALTER TABLE evolucoes_soap ADD COLUMN IF NOT EXISTS excluido_em   timestamp;
+ALTER TABLE evolucoes_soap ADD COLUMN IF NOT EXISTS atualizado_em timestamp;
 
 -- FASE 5 — novo status operacional "Higienizacao" (Higienização Pendente) no giro de leitos.
 ALTER TABLE leitos DROP CONSTRAINT IF EXISTS leitos_status_check;

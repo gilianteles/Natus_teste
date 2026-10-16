@@ -14,7 +14,7 @@ let n = 0; const ok = m => console.log(`  ✔ ${++n}. ${m}`);
 
 (async () => {
   const p = getPool();
-  await p.query('TRUNCATE evolucoes_soap, prescricoes, regulacao_cards, acr_atendimentos, movimentacoes, contato_pele_pele, indicadores_leito, internacoes, pacientes, leitos, setores, usuarios, sessoes, logs RESTART IDENTITY CASCADE');
+  await p.query('TRUNCATE chamadas, trocas_leito, evolucoes_soap, prescricoes, regulacao_cards, acr_atendimentos, movimentacoes, contato_pele_pele, indicadores_leito, internacoes, pacientes, leitos, setores, usuarios, sessoes, logs RESTART IDENTITY CASCADE');
   for (const s of ['UTIN 1', 'UCINCA', 'ALCON 1', 'UTI MATERNA', 'UEN']) await p.query(`INSERT INTO setores VALUES ($1,$1,'Neonatal',0)`, [s]);
   // FASE 3: um Administrador (único perfil que cadastra usuários), um NIR comum e um perfil de setor.
   await p.query(`INSERT INTO usuarios (nome,perfil,setor,senha_hash,nome_completo,cargo,status,administrador)
@@ -247,6 +247,46 @@ let n = 0; const ok = m => console.log(`  ✔ ${++n}. ${m}`);
   assert.ok(Array.isArray(bi.alertas) && bi.higienizacao.pendentes >= 1); ok('BI: alertas de indicadores críticos e higienização pendente');
   sess = ENF;
   assert.match(await falha('obterIndicadoresGerenciais', { setor: 'TODOS' }), /restrito/); ok('BI gerencial restrito aos perfis de gestão');
+
+  console.log('FASE 6 — Consulta de CPF (CADSUS), painel de chamadas e correções de cálculo');
+  sess = ENF;   // qualquer colaborador autenticado usa a consulta e o painel
+  // CADSUS: sem fonte externa configurada, o proxy cai para a base interna do Natus.
+  const cadsus = await call('buscarCadsusPorCpf', { cpf: '529.982.247-25' });
+  assert.ok(cadsus.encontrado && cadsus.paciente.nome === 'Mãe ACR Teste' && cadsus.origem === 'local'); ok('CADSUS: CPF localizado na base interna (fallback do proxy)');
+  assert.match(await falha('buscarCadsusPorCpf', { cpf: '123' }), /11 dígitos/); ok('CADSUS: CPF incompleto recusado');
+  assert.match(await falha('buscarCadsusPorCpf', { cpf: '111.111.111-11' }), /inválido/); ok('CADSUS: CPF inválido recusado');
+  assert.equal((await call('buscarCadsusPorCpf', { cpf: '390.533.447-05' })).encontrado, false); ok('CADSUS: CPF sem registro devolve "não encontrado"');
+  // O nome da mãe preenchido pela consulta é persistido no cadastro da paciente.
+  await call('registrarAtendimentoACR', { idPaciente: atend.idPaciente, nome: 'Mãe ACR Teste', dataNascimento: '1994-05-10', sexo: 'F', nomeMae: 'Dona Filiação', risco: 'Verde' });
+  assert.equal((await p.query(`SELECT nome_mae m FROM pacientes WHERE id_paciente=$1`, [atend.idPaciente])).rows[0].m, 'Dona Filiação'); ok('nome da mãe (CADSUS/cadastro) gravado na paciente');
+
+  // Painel de chamadas (TV/recepção): leitura PÚBLICA + operação autenticada.
+  sess = ADMIN;
+  const cham = await call('chamarProximo', { idAtendimento: atend.idAtendimento, setor: 'Consultório 1', consultorio: 'Consultório 1' });
+  assert.ok(cham.senha); ok('painel: "chamar próxima" gera uma senha de chamada');
+  const pub = await FUNCOES.obterPainelChamadas({ sessao: null }, {});   // público, sem sessão
+  assert.ok(pub.atual && pub.atual.senha === cham.senha); ok('painel: leitura pública funciona sem login');
+  assert.ok(pub.atual.nome.indexOf('Mãe') === 0 && pub.atual.nome.indexOf('ACR') < 0); ok('painel: privacidade — exibe apenas primeiro nome + inicial');
+  assert.ok(Array.isArray((await call('listarFilaChamada')).fila)); ok('painel: fila do operador carregada');
+  await call('rechamar', { idChamada: cham.idChamada });
+  assert.equal((await FUNCOES.obterPainelChamadas({ sessao: null }, {})).atual.repeticoes, 2); ok('painel: "chamar novamente" incrementa as repetições');
+  await call('finalizarChamada', { idChamada: cham.idChamada, status: 'Atendida' });
+  const pub3 = await FUNCOES.obterPainelChamadas({ sessao: null }, {});
+  assert.ok(!pub3.atual || pub3.atual.idChamada !== cham.idChamada); ok('painel: chamada finalizada sai do ar');
+
+  // Troca de leito auditada: preserva origem/destino para a reconstrução histórica da ocupação.
+  const trocas = (await p.query('SELECT count(*)::int n FROM trocas_leito')).rows[0].n;
+  assert.ok(trocas >= 1); ok(`troca de leito registrada em auditoria (${trocas} registro(s))`);
+
+  // BI: filtro de período PARCIAL é recortado exatamente (não conta meses inteiros).
+  const biDia = await call('obterIndicadoresGerenciais', { dataInicial: hoje(), dataFinal: hoje(), setor: 'TODOS' });
+  assert.equal(biDia.periodo.dias, 1); ok('BI: período parcial recortado exatamente (1 dia, sem inflar o mês)');
+  assert.ok(biDia.movimentacao.admissoes >= 1); ok('BI: admissões do recorte exato do dia');
+
+  // Binômio ALCON: a admissão conjunta Mãe+RN conta como UMA internação (não duplica).
+  const estAlcon = await call('obterEstatisticasDashboard', 'ALCON 1', mes, ano);
+  assert.equal(estAlcon.kpis.admissoesMes, 1); ok('ALCON: Mãe + RN contam como 1 internação (binômio)');
+  assert.ok(estAlcon.estatisticas.peso && typeof estAlcon.estatisticas.peso.menor1500 === 'number'); ok('ALCON/neonatal: faixa de peso do RN calculada sem a Mãe no denominador');
 
   await p.query(`UPDATE sessoes SET expira_em = now() - interval '1 minute'`);
   assert.equal(await validarSessao(loginLegado.token), null); ok('sessão expirada é rejeitada');

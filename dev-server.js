@@ -1,7 +1,7 @@
 // Servidor local que imita o roteamento da Vercel (npm run dev). Em produção a Vercel usa /api e /public diretamente.
 require('./lib/tz');
 const http = require('http'), fs = require('fs'), path = require('path'), url = require('url');
-const page = require('./api/page'), health = require('./api/health'), rpc = require('./api/rpc/[fn].js');
+const page = require('./api/page'), health = require('./api/health'), rpc = require('./api/rpc/[fn].js'), cadsus = require('./api/cadsus');
 const MIME = { '.js': 'text/javascript', '.png': 'image/png', '.css': 'text/css', '.ico': 'image/x-icon', '.svg': 'image/svg+xml' };
 
 function adaptar(req, res, query, bodyStr) {
@@ -17,7 +17,10 @@ http.createServer((req, res) => {
   req.on('end', async () => {
     try {
       if (u.pathname === '/' ) { adaptar(req, res, u.query, corpo); return page(req, res); }
+      // Rota amigável do painel de chamadas da TV: /chamada e /tv -> ?view=chamada
+      if (u.pathname === '/chamada' || u.pathname === '/tv') { adaptar(req, res, { ...u.query, view: 'chamada' }, corpo); return page(req, res); }
       if (u.pathname === '/api/health') { adaptar(req, res, u.query, corpo); return health(req, res); }
+      if (u.pathname === '/api/cadsus') { adaptar(req, res, u.query, corpo); return cadsus(req, res); }
       const m = u.pathname.match(/^\/api\/rpc\/([^/]+)$/);
       if (m) { adaptar(req, res, { ...u.query, fn: decodeURIComponent(m[1]) }, corpo); return rpc(req, res); }
       const f = path.join(__dirname, 'public', path.normalize(u.pathname).replace(/^(\.\.[/\\])+/, ''));
