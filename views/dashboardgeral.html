@@ -390,11 +390,11 @@
     function carregarSetores() {
       google.script.run.withSuccessHandler(setores => {
         const opcoes = ['<option value="Todos os Setores">Todos os Setores</option>']
-          .concat(setores.map(s => `<option value="${s.Nome_Setor}">${rotuloSetor(s.Nome_Setor)}</option>`));
+          .concat(setores.map(s => `<option value="${esc(s.Nome_Setor)}">${esc(rotuloSetor(s.Nome_Setor))}</option>`));
         document.getElementById('filtroSetor').innerHTML = opcoes.join('');
 
         const opcoesRel = ['<option value="Todos os Setores">Todos os Setores</option>']
-          .concat(setores.map(s => `<option value="${s.Nome_Setor}">${rotuloSetor(s.Nome_Setor)}</option>`));
+          .concat(setores.map(s => `<option value="${esc(s.Nome_Setor)}">${esc(rotuloSetor(s.Nome_Setor))}</option>`));
         document.getElementById('relSetor').innerHTML = opcoesRel.join('');
       }).obterSetores();
     }
@@ -549,7 +549,7 @@
         blocoPorSetor.classList.remove('d-none');
         document.getElementById('tbodyPorSetor').innerHTML = data.porSetor.map(s => `
           <tr>
-            <td class="fw-semibold">${rotuloSetor(s.setor)}${s.ehUEN ? ' <span class="badge badge-uen">Leito Extra CCO Neonatal</span>' : ''}</td>
+            <td class="fw-semibold">${esc(rotuloSetor(s.setor))}${s.ehUEN ? ' <span class="badge badge-uen">Leito Extra CCO Neonatal</span>' : ''}</td>
             <td>${s.totalLeitos}</td>
             <td>${s.ehUEN ? '—' : s.taxaOcupacaoMensal + '%'}</td>
             <td>${s.admissoes}</td>
@@ -650,7 +650,7 @@
     }
 
     function voltarNIR() {
-      window.top.location.href = `${appUrl}?view=nir&token=${token}`;
+      window.top.location.href = `${appUrl}?view=nir`;
     }
 
     /* ===================== RELATÓRIO GERENCIAL ===================== */
@@ -678,7 +678,7 @@
       google.script.run
         .withSuccessHandler(data => { ultimoRelatorio = data; renderizarResultadoRelatorio(data); document.getElementById('btnImprimirRelatorio').disabled = false; })
         .withFailureHandler(err => {
-          document.getElementById('resultadoRelatorio').innerHTML = `<div class="alert alert-danger">${(err && err.message) || 'Não foi possível gerar o relatório.'}</div>`;
+          document.getElementById('resultadoRelatorio').innerHTML = `<div class="alert alert-danger">${esc((err && err.message) || 'Não foi possível gerar o relatório.')}</div>`;
         })
         .gerarRelatorioGerencial(payload);
     }
@@ -687,8 +687,8 @@
       const cab = `
         <div class="mb-3">
           <div class="text-uppercase small text-muted">Período</div>
-          <div class="fw-bold fs-5">${data.dataInicial} a ${data.dataFinal}</div>
-          <div class="text-uppercase small text-muted mt-1">${data.setor}</div>
+          <div class="fw-bold fs-5">${esc(data.dataInicial)} a ${esc(data.dataFinal)}</div>
+          <div class="text-uppercase small text-muted mt-1">${esc(data.setor)}</div>
         </div>`;
 
       let corpo = '';
@@ -710,7 +710,7 @@
             <table class="table table-sm tabela-setores align-middle">
               <thead><tr><th>Setor</th><th>Adm.</th><th>Altas</th><th>Óbitos</th><th>Transf.</th><th>Paciente-dia</th><th>Média/dia</th><th>Pico</th><th>Ocupação física</th></tr></thead>
               <tbody>
-                ${data.linhas.map(l => `<tr><td class="fw-semibold">${l.setor}</td><td>${l.admissoes}</td><td>${l.altas}</td><td>${l.obitos}</td><td>${l.transferencias}</td><td>${l.pacienteDia}</td><td>${l.mediaDia}</td><td>${l.pico}</td><td>${l.ocupacaoFisica}</td></tr>`).join('')}
+                ${data.linhas.map(l => `<tr><td class="fw-semibold">${esc(l.setor)}</td><td>${esc(l.admissoes)}</td><td>${esc(l.altas)}</td><td>${esc(l.obitos)}</td><td>${esc(l.transferencias)}</td><td>${esc(l.pacienteDia)}</td><td>${esc(l.mediaDia)}</td><td>${esc(l.pico)}</td><td>${esc(l.ocupacaoFisica)}</td></tr>`).join('')}
               </tbody>
             </table>
           </div>`;
@@ -720,7 +720,7 @@
           <div class="table-responsive">
             <table class="table table-sm tabela-setores align-middle">
               <thead><tr><th>Procedência</th><th>Quantidade</th></tr></thead>
-              <tbody>${data.linhas.map(l => `<tr><td>${l.procedencia}</td><td>${l.quantidade}</td></tr>`).join('') || '<tr><td colspan="2" class="text-muted text-center">Nenhuma admissão no período.</td></tr>'}</tbody>
+              <tbody>${data.linhas.map(l => `<tr><td>${esc(l.procedencia)}</td><td>${esc(l.quantidade)}</td></tr>`).join('') || '<tr><td colspan="2" class="text-muted text-center">Nenhuma admissão no período.</td></tr>'}</tbody>
             </table>
           </div>`;
       } else if (data.tipo === 'lista') {
@@ -731,7 +731,7 @@
           <div class="table-responsive">
             <table class="table table-sm tabela-setores align-middle">
               <thead><tr><th>Nome</th><th>Setor</th><th>${titulo}</th><th>${colExtra}</th></tr></thead>
-              <tbody>${data.linhas.map(l => `<tr><td>${l.nome}</td><td>${l.setor}</td><td>${l.entrada || l.data}</td><td>${l.status ? (l.status + (l.procedencia ? ' · ' + l.procedencia : '')) : (l.destino || '-')}</td></tr>`).join('') || `<tr><td colspan="4" class="text-muted text-center">Nenhum registro no período.</td></tr>`}</tbody>
+              <tbody>${data.linhas.map(l => `<tr><td>${esc(l.nome)}</td><td>${esc(l.setor)}</td><td>${esc(l.entrada || l.data)}</td><td>${l.status ? (esc(l.status) + (l.procedencia ? ' · ' + esc(l.procedencia) : '')) : esc(l.destino || '-')}</td></tr>`).join('') || `<tr><td colspan="4" class="text-muted text-center">Nenhum registro no período.</td></tr>`}</tbody>
             </table>
           </div>`;
       }

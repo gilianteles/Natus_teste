@@ -1,21 +1,23 @@
 /* Camada de compatibilidade: reproduz a API google.script.run do Apps Script sobre fetch (/api/rpc/<função>). */
+/* Utilitário global de escape de HTML — usado por todas as telas antes de inserir dados em innerHTML
+   (proteção contra XSS). Implementação idêntica à de lib/util.js (escaparHtml). */
+window.esc = function (v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+  });
+};
 (function () {
-  function tokenAtual() {
-    try { if (typeof token !== 'undefined' && token) return token; } catch (e) {}
-    return new URLSearchParams(location.search).get('token') || '';
-  }
   async function chamar(nome, args) {
     // Limite restrito à troca de leito; não muda os demais RPCs.
     const controle = nome === 'trocarLeito' ? new AbortController() : null;
     const timer = controle ? setTimeout(() => controle.abort(), 35000) : null;
     try {
       let resp;
-      const tk = tokenAtual();
       try {
         resp = await fetch('/api/rpc/' + encodeURIComponent(nome), {
           method: 'POST',
-          credentials: 'same-origin',   // envia o cookie de sessão HttpOnly
-          headers: Object.assign({ 'Content-Type': 'application/json' }, tk ? { 'Authorization': 'Bearer ' + tk } : {}),
+          credentials: 'same-origin',   // a sessão vai em cookie HttpOnly; o token NUNCA na URL/cabeçalho
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ args: args }),
           ...(controle ? { signal: controle.signal } : {})
         });

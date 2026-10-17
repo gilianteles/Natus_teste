@@ -23,9 +23,13 @@ module.exports = async function handler(req, res) {
     if (!PUBLICAS.has(nome) && !sessao) return enviar(401, { ok: false, error: 'Sessão inválida ou expirada. Faça login novamente.' });
     // encerrarSessao recebe o token do próprio cabeçalho/cookie
     const a = nome === 'encerrarSessao' ? [token] : args;
-    const data = await fn({ sessao, token }, ...a);
-    // Segurança: ao autenticar, o token passa a viver em cookie HttpOnly (SomeSite=Lax); ao sair, é limpo.
-    if (nome === 'autenticar' && data && data.token) res.setHeader('Set-Cookie', cookieSessao(data.token, Number(SESSAO_HORAS) * 3600, secure));
+    let data = await fn({ sessao, token }, ...a);
+    // Segurança: ao autenticar, o token passa a viver SOMENTE no cookie HttpOnly (SameSite=Lax) e
+    // NÃO é devolvido no corpo da resposta. Ao sair, o cookie é limpo.
+    if (nome === 'autenticar' && data && data.token) {
+      res.setHeader('Set-Cookie', cookieSessao(data.token, Number(SESSAO_HORAS) * 3600, secure));
+      if (typeof data === 'object') { data = Object.assign({}, data); delete data.token; }
+    }
     if (nome === 'encerrarSessao') res.setHeader('Set-Cookie', cookieLimparSessao(secure));
     return enviar(200, { ok: true, data: data === undefined ? null : data });
   } catch (e) {

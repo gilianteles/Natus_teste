@@ -53,10 +53,9 @@ module.exports = async function handler(req, res) {
   try {
     const q = req.query || {};
     const view = String(q.view || '');
-    const tokenQuery = String(q.token || '');
-    // Segurança: o token deixa de trafegar na URL. A sessão vive em cookie HttpOnly; o parâmetro
-    // ?token= continua aceito apenas para compatibilidade (links antigos/sistemas legados).
-    const token = tokenQuery || tokenDoCookie(req.headers.cookie);
+    // Segurança: o token NÃO trafega mais na URL (links antigos com ?token= são IGNORADOS). A sessão
+    // vive exclusivamente no cookie HttpOnly.
+    const token = tokenDoCookie(req.headers.cookie);
     const sessao = token ? await validarSessao(token) : null;
     const appUrl = '/';
 
@@ -75,9 +74,8 @@ module.exports = async function handler(req, res) {
     }
     if (!sessao) return res.status(200).send(render('login', { appUrl }));
 
-    // Uma vez autenticado por cookie, os links internos não propagam mais o token na URL.
-    const tokenLinks = tokenQuery ? token : '';
-    const base = { token: tokenLinks, appUrl, nomeUsuario: sessao.nome, perfilUsuario: sessao.perfil, setorUsuario: sessao.setor || '' };
+    // Com a sessão por cookie HttpOnly, os links internos NÃO propagam token algum na URL.
+    const base = { token: '', appUrl, nomeUsuario: sessao.nome, perfilUsuario: sessao.perfil, setorUsuario: sessao.setor || '' };
     const adm = ehPerfilAdministrativo(sessao.perfil), nir = ehPerfilNIR(sessao.perfil);
     const admin = ehPerfilAdministrador(sessao.perfil) || sessao.administrador === true;   // FASE 3: gestão de usuários
     const setorDe = padrao => (nir ? (String(q.setor || padrao).trim() || padrao) : sessao.setor);

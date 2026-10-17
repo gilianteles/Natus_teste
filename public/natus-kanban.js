@@ -137,7 +137,7 @@
           '<div class="col-md-6"><label class="form-label small mb-1">Leito</label><select class="form-select form-select-sm" id="kbIntLeito"><option value="">Selecione o setor primeiro</option></select></div>' +
           '<div class="col-6 col-md-3"><label class="form-label small mb-1">Data</label><input type="date" class="form-control form-control-sm" id="kbIntData"></div>' +
           '<div class="col-6 col-md-3"><label class="form-label small mb-1">Hora</label><input type="time" class="form-control form-control-sm" id="kbIntHora"></div>' +
-          '<div class="col-6 col-md-3 d-none" id="kbIntTipoWrap"><label class="form-label small mb-1">Tipo</label><select class="form-select form-select-sm" id="kbIntTipo"><option value="RN">RN (recém-nascido)</option><option value="MAE">Mãe</option></select></div>' +
+          '<div class="col-6 col-md-3 d-none" id="kbIntTipoWrap"><label class="form-label small mb-1">Tipo</label><select class="form-select form-select-sm" id="kbIntTipo" onchange="kbCarregarLeitos()"><option value="RN">RN (recém-nascido)</option><option value="MAE">Mãe</option></select></div>' +
           '<div class="col-6 col-md-3"><label class="form-label small mb-1">Procedência</label><input class="form-control form-control-sm" id="kbIntProc" value="ACR"></div>' +
           '</div>' +
           '<button class="btn btn-natus btn-sm fw-semibold mt-3" onclick="kbInternar(\'' + c.idCard + '\')"><i class="bi bi-box-arrow-in-down me-1"></i>Confirmar internação</button>' +
@@ -183,12 +183,19 @@
     var ehAlcon = SETORES_ALCON.indexOf(String(setor).trim().toUpperCase()) !== -1;
     if (wrapTipo) wrapTipo.classList.toggle('d-none', !ehAlcon);
     if (!setor) { sel.innerHTML = '<option value="">Selecione o setor primeiro</option>'; return; }
+    var tipo = (ehAlcon && el('kbIntTipo')) ? el('kbIntTipo').value : '';
     sel.innerHTML = '<option value="">Carregando...</option>';
-    google.script.run.withSuccessHandler(function (leitos) {
-      if (!leitos || !leitos.length) { sel.innerHTML = '<option value="">Nenhum leito disponível neste setor</option>'; return; }
-      sel.innerHTML = '<option value="">Selecione o leito...</option>' + leitos.map(function (l) { return '<option value="' + esc(l.ID_Leito) + '">' + esc(l.Numero_Leito) + (l.Status && l.Status !== 'Livre' ? ' — ' + esc(l.Status) : '') + '</option>'; }).join('');
+    // ALCON: leitos LIVRES primeiro e, depois, os OCUPADOS que apenas completam o binômio (Mãe/RN).
+    google.script.run.withSuccessHandler(function (info) {
+      var livres = (info && info.livres) || [], comp = (info && info.complementares) || [];
+      var total = info ? info.totalLeitos : 0;
+      if (total === 0) { sel.innerHTML = '<option value="">Setor ainda sem leitos cadastrados</option>'; return; }
+      if (!livres.length && !comp.length) { sel.innerHTML = '<option value="">Nenhum leito compatível disponível</option>'; return; }
+      var opts = livres.map(function (l) { return '<option value="' + esc(l.ID_Leito) + '">' + esc(l.Numero_Leito) + ' — LIVRE</option>'; }).join('')
+        + comp.map(function (l) { return '<option value="' + esc(l.ID_Leito) + '">' + esc(l.Numero_Leito) + ' — completar binômio</option>'; }).join('');
+      sel.innerHTML = '<option value="">Selecione o leito...</option>' + opts;
     }).withFailureHandler(function (err) { sel.innerHTML = '<option value="">Erro ao consultar leitos</option>'; toast(err && err.message ? err.message : 'Falha ao consultar leitos.', 'erro'); })
-      .getLeitosDisponiveisSetor(setor);
+      .obterInfoLeitosSetorDestino(setor, tipo);
   }
   function kbInternar(idCard) {
     var setor = el('kbIntSetor').value, leitoId = el('kbIntLeito').value;
@@ -209,8 +216,7 @@
   }
   function kbAbrirProntuario(idInternacao) {
     if (!idInternacao) return;
-    var t = tokenAtual();
-    window.open('/?view=prontuario&token=' + encodeURIComponent(t) + '&id=' + encodeURIComponent(idInternacao), '_blank');
+    window.open('/?view=prontuario&id=' + encodeURIComponent(idInternacao), '_blank');
   }
 
   function kbSalvarCard(idCard) {

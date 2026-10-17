@@ -125,11 +125,11 @@ function renderizarSetores(setores){
     const dot=ocupado?'#dc3545':atencao?'#f59f45':'#19a974';
     grid.innerHTML+=`
       <div class="col-xl-3 col-lg-4 col-md-6">
-        <div class="setor-card" onclick="abrirSetor('${String(nomeInterno).replace(/'/g,"\\'")}')">
+        <div class="setor-card" onclick="abrirSetor('${esc(String(nomeInterno).replace(/'/g,"\\'"))}')">
           <div class="setor-top"></div><div class="setor-body">
             <div class="d-flex justify-content-between align-items-start mb-3">
               <div class="d-flex align-items-center gap-2"><div class="setor-icon"><i class="bi bi-hospital"></i></div>
-                <div><div class="fw-bold">${nomeExibicao}</div><div class="small text-muted">${s.tipo||'Setor assistencial'}</div></div>
+                <div><div class="fw-bold">${esc(nomeExibicao)}</div><div class="small text-muted">${esc(s.tipo||'Setor assistencial')}</div></div>
               </div>
               <span class="small fw-bold"><span class="status-dot" style="background:${dot}"></span>${ocupado?'Lotado':atencao?'Atenção':'Disponível'}</span>
             </div>
@@ -141,19 +141,19 @@ function renderizarSetores(setores){
       </div>`;
   });
 }
-function abrirSetor(nomeSetor){window.top.location.href=`${appUrl}?view=painel&token=${token}&setor=${encodeURIComponent(nomeSetor)}`;}
-function abrirHistorico(){window.top.location.href=`${appUrl}?view=historico&token=${token}`;}
-function abrirDashboardGeral(){window.top.location.href=`${appUrl}?view=dashboardgeral&token=${token}`;}
+function abrirSetor(nomeSetor){window.top.location.href=`${appUrl}?view=painel&setor=${encodeURIComponent(nomeSetor)}`;}
+function abrirHistorico(){window.top.location.href=`${appUrl}?view=historico`;}
+function abrirDashboardGeral(){window.top.location.href=`${appUrl}?view=dashboardgeral`;}
 
 function carregarUsuarios(){
   google.script.run.withSuccessHandler(renderizarUsuarios).withFailureHandler(err=>alert(err&&err.message?err.message:err)).obterUsuariosAdministrativos(token);
   google.script.run.withSuccessHandler(lista=>{ SETORES=(lista||[]).slice(); montarSelectPerfil(); }).withFailureHandler(err=>alert(err&&err.message?err.message:err)).obterSetoresParaUsuario(token);
   google.script.run.withSuccessHandler(opcoes=>{
     const cargo=document.getElementById('listaCargos');
-    if(cargo&&opcoes&&opcoes.cargos) cargo.innerHTML=opcoes.cargos.map(c=>`<option value="${c}"></option>`).join('');
+    if(cargo&&opcoes&&opcoes.cargos) cargo.innerHTML=opcoes.cargos.map(c=>`<option value="${esc(c)}"></option>`).join('');
     if(opcoes&&opcoes.perfis){
       const sel=document.getElementById('usuarioPerfil');
-      sel.innerHTML=opcoes.perfis.map(p=>`<option value="${p}">${p}</option>`).join('');
+      sel.innerHTML=opcoes.perfis.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('');
       sel.value='Operador';
       montarSelectSetor();
     }
@@ -166,7 +166,7 @@ function mascaraCpf(v){const d=soDigitos(v).substring(0,11);if(d.length<=3)retur
 function montarSelectPerfil(){
   const sel=document.getElementById('usuarioPerfil');
   if(!sel.options.length){
-    sel.innerHTML=['Administrador','Operador','Visualizador','NIR','SAME','NIR/SAME','Gestão','Setor'].map(p=>`<option value="${p}">${p}</option>`).join('');
+    sel.innerHTML=['Administrador','Operador','Visualizador','NIR','SAME','NIR/SAME','Gestão','Setor'].map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('');
     sel.value='Operador';
   }
   montarSelectSetor();
@@ -179,7 +179,7 @@ function montarSelectSetor(valor){
   ['ACR','NIR','SAME','NIR/SAME','Gestão'].forEach(s=>opts.push({v:s,t:rotuloSetor(s)}));
   SETORES.forEach(s=>{ if(!opts.some(o=>String(o.v).toUpperCase()===String(s).toUpperCase())) opts.push({v:s,t:rotuloSetor(s)}); });
   const sel=document.getElementById('usuarioSetor');
-  sel.innerHTML=opts.map(o=>`<option value="${o.v}">${o.t}</option>`).join('');
+  sel.innerHTML=opts.map(o=>`<option value="${esc(o.v)}">${esc(o.t)}</option>`).join('');
   sel.value = valor!==undefined ? valor : (ehAdmin?'':(SETORES[0]||'ACR'));
 }
 function renderizarUsuarios(lista){
@@ -190,15 +190,15 @@ function renderizarUsuarios(lista){
     const ativo=String(u.status||'Ativo').toLowerCase()==='ativo';
     const badgePerfil=u.administrador?'bg-danger':(u.perfil==='Setor'?'bg-secondary':'bg-primary');
     return `<tr>
-      <td><div class="fw-semibold">${u.nomeCompleto||u.nome}</div><div class="small text-muted">login: ${u.nome}${u.cpf?' · CPF '+mascaraCpf(u.cpf):''}</div></td>
-      <td>${u.cargo||'—'}</td>
-      <td><div class="small">${u.email||'—'}</div><div class="small text-muted">${u.telefone||''}</div></td>
-      <td><span class="badge ${badgePerfil}">${u.perfil}</span>${u.administrador?' <i class="bi bi-shield-lock-fill text-danger" title="Administrador"></i>':''}</td>
-      <td>${rotuloSetor(u.setor)||'—'}</td>
+      <td><div class="fw-semibold">${esc(u.nomeCompleto||u.nome)}</div><div class="small text-muted">login: ${esc(u.nome)}${u.cpf?' · CPF '+esc(mascaraCpf(u.cpf)):''}</div></td>
+      <td>${esc(u.cargo)||'—'}</td>
+      <td><div class="small">${esc(u.email)||'—'}</div><div class="small text-muted">${esc(u.telefone)||''}</div></td>
+      <td><span class="badge ${badgePerfil}">${esc(u.perfil)}</span>${u.administrador?' <i class="bi bi-shield-lock-fill text-danger" title="Administrador"></i>':''}</td>
+      <td>${esc(rotuloSetor(u.setor))||'—'}</td>
       <td><span class="badge ${ativo?'bg-success':'bg-secondary'}">${ativo?'Ativo':'Inativo'}</span></td>
       <td class="text-end">
-        <button class="btn btn-sm btn-outline-primary me-1" title="Editar" onclick="editarUsuario('${String(u.nome).replace(/'/g,"\\'")}')"><i class="bi bi-pencil"></i></button>
-        <button class="btn btn-sm btn-outline-danger" title="Excluir" onclick="excluirUsuario('${String(u.nome).replace(/'/g,"\\'")}')"><i class="bi bi-trash"></i></button>
+        <button class="btn btn-sm btn-outline-primary me-1" title="Editar" onclick="editarUsuario('${esc(String(u.nome).replace(/'/g,"\\'"))}')"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger" title="Excluir" onclick="excluirUsuario('${esc(String(u.nome).replace(/'/g,"\\'"))}')"><i class="bi bi-trash"></i></button>
       </td></tr>`;
   }).join('');
 }
@@ -253,8 +253,8 @@ document.getElementById('formUsuario').addEventListener('submit',e=>{
   }).withFailureHandler(err=>{ btn.disabled=false; alert(err&&err.message?err.message:err); }).salvarUsuario(token,dados);
 });
 function excluirUsuario(nome){if(!confirm(`Excluir o colaborador "${nome}"? O acesso será revogado imediatamente.`))return;google.script.run.withSuccessHandler(carregarUsuarios).withFailureHandler(err=>alert(err&&err.message?err.message:err)).excluirUsuario(token,nome);}
-function abrirKanban(){window.top.location.href=`${appUrl}?view=kanban&token=${token}`;}
-function sair(){google.script.run.withSuccessHandler(()=>window.top.location.href=appUrl).encerrarSessao(token);}
+function abrirKanban(){window.top.location.href=`${appUrl}?view=kanban`;}
+function sair(){google.script.run.withSuccessHandler(()=>window.top.location.href=appUrl).encerrarSessao();}
 document.getElementById('formNovoSetor').addEventListener('submit',function(e){
   e.preventDefault();const payload={nome:document.getElementById('setorNome').value,tipo:document.getElementById('setorTipo').value,leitosAtivos:document.getElementById('setorLeitos').value};
   google.script.run.withSuccessHandler(()=>{bootstrap.Modal.getInstance(document.getElementById('modalNovoSetor')).hide();document.getElementById('formNovoSetor').reset();carregarNIR();}).withFailureHandler(err=>alert(err.message)).criarSetor(payload);

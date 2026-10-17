@@ -107,6 +107,43 @@ negócio (UEN/vaga zero, binômio ALCON, censo às 24h, mortalidade, Método Can
   (4) **indicadores neonatais**: a **Mãe é excluída** dos denominadores específicos de RN (faixa de peso e sexo) nos setores
   neonatais; corrigido também um bug de acentuação em `normalizarParto` (cesárea/fórceps iam para "Outros").
 
+### FASE 7 — Correções de divergências (ALCON, histórico, versionamento e segurança)
+- **1. Ocupação histórica após troca de leito** (`lib/calc.js`): a taxa de ocupação deixou de olhar apenas o **leito atual** da
+  internação. A partir da linha do tempo de `trocas_leito` (`indexarTrocas` + `leitoNoDia`), cada dia do mês é reconstruído com
+  o leito em que a internação **estava naquele dia** (leito de origem antes da troca, destino depois). Vale para
+  `calcularIndicadoresSetor`, `calcularIndicadoresPeriodo` e o relatório gerencial — trocar o leito hoje **não reescreve** o
+  passado.
+- **2. Mães fora do denominador neonatal** (`lib/qualidade.js`): o painel de qualidade exclui a **Mãe (puérpera)** do conjunto de
+  RNs (`totalRNsInternados`/`idsRN`) via `R.ehMae`. Sem isso, 1 Mãe + 1 RN concentrado geraria "50%" de contato pele a pele;
+  agora as metas neonatais refletem apenas os RNs.
+- **3. Token de sessão fora da URL** (`lib/util.js`, `lib/auth.js`, `api/page.js`, `api/rpc/[fn].js`, `public/natus-rpc.js`):
+  o token passa a existir **somente** no cookie `HttpOnly`. O banco guarda o **hash SHA-256** (`hashToken`) — nunca o valor
+  utilizável; a resposta de `autenticar` **não devolve mais** `token`; `?token=` na URL é **ignorado**; o cliente não envia
+  `Authorization`. *Efeito colateral esperado: sessões antigas são invalidadas — todos precisam entrar de novo.*
+- **4. Proteção contra XSS** (`views/*.html`, `public/*.js`): as inserções de dados de paciente em `innerHTML` passam a usar o
+  helper de escape (`esc`/`escaparHtml`) — nomes, procedência, destino, observações, rótulos de setor e selects. O `esc` global
+  passa a ser exposto por `public/natus-rpc.js` (carregado por todas as telas). A CSP mantém `'unsafe-inline'` porque a arquitetura
+  usa handlers/scripts inline; a defesa efetiva contra injeção é o escape na saída.
+- **5. Histórico das evoluções preservado** (`lib/clinica.js`, `db/schema.sql`, `public/natus-prontuario.js`): editar uma evolução
+  SOAP **não sobrescreve** mais o conteúdo anterior. Antes da alteração, o conteúdo atual é arquivado em
+  `evolucoes_soap_versoes` e `evolucoes_soap.versao` é incrementado. O prontuário mostra um selo **vN** e um modal
+  **"Histórico de versões"** (RPC `listarVersoesEvolucao`).
+- **6. Transferência para o ALCON não inverte mais o binômio** (`lib/operacoes.js`, `lib/painel.js`): a vaga (Mãe/RN) é
+  **clínica** e não pode ser adivinhada. A designação vem do `tipo_paciente` atual; quando ausente, é inferida da **origem**
+  inequívoca (PPP/UTI Materna → **Mãe**; UTIN/UCIN/UCINCA/UEN/CCO → **RN**) e, nas origens ambíguas, **exigida explicitamente**
+  (`tipoPacienteDestino`) — com erro claro se não informada. `registrarInternacao`/`internarCardKanban` também deixaram de
+  assumir `'RN'` por padrão, e a sincronização do ALCON não promove mais um ocupante de tipo desconhecido a RN (o leito
+  permanece Ocupado, sem vínculo errado).
+- **7. Lista de leitos do ALCON** (`lib/operacoes.js`, `views/painel.html`, `public/natus-kanban.js`): a lista de destino mostra
+  **primeiro os leitos LIVRES** e, em seguida, os **OCUPADOS que podem receber a vaga** selecionada (ex.: leito ocupado apenas
+  pela Mãe, para completar o binômio). Ao trocar o papel (Mãe/RN), a lista é recarregada — no painel de admissão, na
+  transferência e no Kanban.
+- **Regra ALCON corrigida** (`lib/calc.js`, `episodiosAlcon`): o **RN que permanece internado após a alta da Mãe** (nova
+  internação de Tratamento Clínico) **não pertence** ao episódio anterior — conta como **nova admissão**. O agrupamento por
+  binômio só une quem **convive no tempo** com a Mãe (intervalos semiabertos `[início, fim)`: uma reinternação que começa
+  exatamente na alta da Mãe não se sobrepõe). Efeito: o binômio continua valendo **1 admissão**, mas a reinternação do RN
+  soma **+1**.
+
 
 ## Implantação (≈10 min)
 1. **Banco**: crie um PostgreSQL gratuito (Neon, Supabase ou Vercel Postgres, região São Paulo/`gru1` se disponível) e copie a `DATABASE_URL` (versão *pooled*).
@@ -133,7 +170,7 @@ convertidas a scrypt no 1º login), Pele a Pele e Indicadores. Roda em transaç�
 
 ## Desenvolvimento local
 `npm run dev` (http://localhost:3000, precisa de `DATABASE_URL`) ou `vercel dev`.
-`npm test` executa a bateria completa de verificações de ponta a ponta (inclui ACR, Kanban, PEP, BI, CADSUS e o painel de chamadas, além do bloqueio de cadastro por perfil) — **apaga os dados do banco apontado**; use um banco de teste.
+`npm test` executa a bateria completa de verificações de ponta a ponta (inclui ACR, Kanban, PEP, BI, CADSUS, o painel de chamadas e as correções da FASE 7 — ocupação histórica por trocas de leito, denominador neonatal sem a Mãe, vaga Mãe/RN no ALCON, versionamento da evolução e hash do token — além do bloqueio de cadastro por perfil) — **apaga os dados do banco apontado**; use um banco de teste.
 
 ## Segurança (diferenças em relação ao original)
 - Todas as chamadas exigem sessão válida (expira em 12 h, `SESSION_HOURS`); perfis NIR/SAME/GESTÃO e restrição por setor são aplicados **no servidor**, não só na tela.
@@ -141,10 +178,13 @@ convertidas a scrypt no 1º login), Pele a Pele e Indicadores. Roda em transaç�
 - Senhas com scrypt + sal (o SHA-256 sem sal da planilha é aceito apenas para migração); bloqueio após 8 falhas/15 min; senha mínima de 6 caracteres.
 - O nome do usuário nos logs de auditoria vem da sessão (não do navegador). Erros técnicos não são expostos ao usuário.
 - Escritas são transações com trava global (`pg_advisory_xact_lock`), substituindo o `LockService`.
-- A sessão vive em **cookie HttpOnly** (`natus_sessao`, `SameSite=Lax`; `Secure` em HTTPS): o token **não trafega mais na URL**. O token por `Authorization: Bearer`/`?token=` é aceito apenas por compatibilidade com links antigos.
+- A sessão vive **apenas em cookie HttpOnly** (`natus_sessao`, `SameSite=Lax`; `Secure` em HTTPS): o token **não trafega na URL**
+  nem no `Authorization`. O banco guarda somente o **hash SHA-256** do token (`hashToken`) — nunca o valor utilizável; a resposta
+  do login **não devolve** mais o token e um `?token=` na URL é **ignorado** pelo servidor.
 - As permissões da sessão são **revalidadas a cada requisição** contra o cadastro do usuário: mudar perfil/setor/nível administrativo ou inativar/remover o usuário revoga o acesso na hora.
-- **CSP** aplicada nas páginas (bloqueia `object-src`, fixa `base-uri`/`frame-ancestors`/`form-action`); todo texto dinâmico é escapado no servidor (`escaparHtml`/`jsonSeguro`) e no cliente (`esc`), evitando XSS armazenado/refletido.
-- A **evolução clínica SOAP nunca é apagada fisicamente**: a exclusão é lógica (`excluido`), preservando o histórico/auditoria do prontuário.
+- **CSP** aplicada nas páginas (bloqueia `object-src`, fixa `base-uri`/`frame-ancestors`/`form-action`); todo texto dinâmico é escapado no servidor (`escaparHtml`/`jsonSeguro`) e no cliente (`esc`, exposto por `natus-rpc.js`), evitando XSS armazenado/refletido. (`'unsafe-inline'` é mantido porque as telas usam handlers/scripts inline — a defesa efetiva é o escape na saída.)
+- A **evolução clínica SOAP nunca é apagada fisicamente**: a exclusão é lógica (`excluido`) e **cada edição arquiva a versão
+  anterior** em `evolucoes_soap_versoes` (campo `versao`), preservando o histórico clínico e a auditoria do prontuário.
 - Consultas por CPF ao **CADSUS** passam por um **proxy de servidor** (`lib/cadsus.js` / `/api/cadsus`): nenhuma credencial de API fica no front-end. Sem `CADSUS_API_URL` configurada, usa a base interna do Natus.
 - Escritas são transações com trava global (`pg_advisory_xact_lock`), substituindo o `LockService`.
 - Fuso fixo America/Manaus (definido no código; a Vercel não permite a variável `TZ`).
@@ -153,5 +193,7 @@ convertidas a scrypt no 1º login), Pele a Pele e Indicadores. Roda em transaç�
 ## Observações sobre regras portadas sem alteração
 Mantidas como no original; vale revisar com a equipe:
 1. **Transferência a partir do ALCON** encerra a internação e libera o vínculo, mas **não cria internação no setor de destino** (o ramo ALCON é executado antes do ramo de transferência interna).
-2. **Alta da Mãe no ALCON**: a internação anterior do RN vira "Encerrado - Binômio" sem registro de saída, e uma nova é aberta; no censo de pacientes-dia o RN pode ser contado em duplicidade (a ocupação física do leito não é afetada).
+2. **Alta da Mãe no ALCON**: a internação anterior do RN vira "Encerrado - Binômio" sem registro de saída, e uma nova é aberta
+   (Tratamento Clínico). Por **regra clínica**, essa reinternação conta como **nova admissão** (não herda o binômio anterior) e,
+   no censo de pacientes-dia, o RN pode ser contado em duplicidade — a ocupação física do leito (leito-dia) não é afetada.
 3. `Setores.Leitos_Ativos` é apenas o número inicial de leitos informado na criação do setor.

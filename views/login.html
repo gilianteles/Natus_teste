@@ -475,7 +475,7 @@
       google.script.run
         .withSuccessHandler(function (res) {
           setLoading(false);
-          if (!res || !res.token) {
+          if (!res || !res.nome) {
             showMessage('Usuário ou senha inválidos.');
             return;
           }

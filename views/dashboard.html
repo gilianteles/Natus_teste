@@ -259,7 +259,7 @@
     function carregarSetores() {
       google.script.run.withSuccessHandler(setores => {
         const select = document.getElementById('filtroSetor');
-        const options = setores.map(s => `<option value="${s.Nome_Setor}" ${s.Nome_Setor === setorAtual ? 'selected' : ''}>${rotuloSetor(s.Nome_Setor)}</option>`).join('');
+        const options = setores.map(s => `<option value="${esc(s.Nome_Setor)}" ${s.Nome_Setor === setorAtual ? 'selected' : ''}>${esc(rotuloSetor(s.Nome_Setor))}</option>`).join('');
         select.innerHTML = options;
         document.getElementById('headerSetor').innerHTML = options;
         document.getElementById('headerSetor').value = setorAtual;
@@ -501,11 +501,11 @@
 
     function abrirRelatorioDashboard() {
       // Mantém o usuário no dashboard e sinaliza que o relatório gerencial está disponível no módulo Dashboard Geral.
-      window.top.location.href = `${appUrl}?view=dashboardgeral&token=${token}&setor=${encodeURIComponent(setorAtual)}`;
+      window.top.location.href = `${appUrl}?view=dashboardgeral&setor=${encodeURIComponent(setorAtual)}`;
     }
 
     function voltarPainel() {
-      window.top.location.href = `${appUrl}?view=painel&token=${token}&setor=${encodeURIComponent(setorAtual)}`;
+      window.top.location.href = `${appUrl}?view=painel&setor=${encodeURIComponent(setorAtual)}`;
     }
   </script>
 </body>

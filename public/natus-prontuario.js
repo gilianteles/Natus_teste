@@ -11,7 +11,6 @@
     try { if (window.PEP && window.PEP.idInternacao) return window.PEP.idInternacao; } catch (e) {}
     return new URLSearchParams(location.search).get('id') || '';
   }
-  function tokenAtual() { try { return window.PEP && window.PEP.token ? window.PEP.token : ''; } catch (e) { return ''; } }
   function toast(msg, tipo) {
     var host = el('pepToasts'); if (!host) { alert(msg); return; }
     var cores = { ok: 'text-bg-success', erro: 'text-bg-danger', info: 'text-bg-secondary' };
@@ -62,14 +61,20 @@
 
     var evos = (i.evolucoes && i.evolucoes.length)
       ? i.evolucoes.map(function (e) {
+          var temVersoes = Number(e.versao) > 1;
           return '<div class="pep-evo ' + classeCategoria(e.categoria) + '">' +
             '<div class="pep-evo-topo"><span class="pep-evo-cat"><i class="bi bi-person-badge me-1"></i>' + esc(e.categoria) + '</span>' +
-            '<span class="text-muted small">' + esc(e.dataHora) + ' · ' + esc(e.profissional) + '</span>' +
-            '<button class="btn btn-sm btn-link text-danger ms-auto p-0" title="Excluir evolução" onclick="pepExcluirEvolucao(\'' + esc(e.idEvolucao) + '\')"><i class="bi bi-trash"></i></button></div>' +
+            (temVersoes ? '<span class="badge text-bg-light border ms-1" title="Versão atual da evolução">v' + esc(e.versao) + '</span>' : '') +
+            '<span class="text-muted small ms-2">' + esc(e.dataHora) + ' · ' + esc(e.profissional) + '</span>' +
+            (temVersoes ? '<button class="btn btn-sm btn-link text-secondary ms-auto p-0" title="Ver histórico de versões (edições anteriores)" onclick="pepVerVersoes(\'' + esc(e.idEvolucao) + '\')"><i class="bi bi-clock-history"></i></button>'
+                        : '<span class="ms-auto"></span>') +
+            '<button class="btn btn-sm btn-link text-danger p-0" title="Excluir evolução" onclick="pepExcluirEvolucao(\'' + esc(e.idEvolucao) + '\')"><i class="bi bi-trash"></i></button></div>' +
             '<div class="pep-soap"><div><b>S</b> ' + (esc(e.subjetivo) || '<span class="text-muted">—</span>') + '</div>' +
             '<div><b>O</b> ' + (esc(e.objetivo) || '<span class="text-muted">—</span>') + '</div>' +
             '<div><b>A</b> ' + (esc(e.avaliacao) || '<span class="text-muted">—</span>') + '</div>' +
-            '<div><b>P</b> ' + (esc(e.plano) || '<span class="text-muted">—</span>') + '</div></div></div>';
+            '<div><b>P</b> ' + (esc(e.plano) || '<span class="text-muted">—</span>') + '</div></div>' +
+            (temVersoes ? '<div class="small text-muted mt-1">Editada · ' + esc(e.versao) + ' versões registradas</div>' : '') +
+            '</div>';
         }).join('')
       : '<div class="text-muted small">Nenhuma evolução registrada ainda.</div>';
 
@@ -157,6 +162,31 @@
     google.script.run.withSuccessHandler(function () { toast('Evolução excluída.', 'ok'); carregarProntuario(); })
       .withFailureHandler(function (e) { toast(e && e.message ? e.message : 'Não foi possível excluir.', 'erro'); }).excluirEvolucaoSOAP(idEvolucao);
   }
+  function pepVerVersoes(idEvolucao) {
+    google.script.run.withSuccessHandler(function (r) {
+      if (!r) return;
+      function bloco(v, atual) {
+        return '<div class="pep-evo mb-3"><div class="pep-evo-topo"><span class="pep-evo-cat">Versão ' + esc(v.versao) + (atual ? ' (atual)' : '') + '</span>' +
+          '<span class="text-muted small ms-2">' + esc(v.dataHora) + ' · ' + esc(v.profissional || v.registradoPor) + '</span></div>' +
+          '<div class="pep-soap"><div><b>S</b> ' + (esc(v.subjetivo) || '<span class="text-muted">—</span>') + '</div>' +
+          '<div><b>O</b> ' + (esc(v.objetivo) || '<span class="text-muted">—</span>') + '</div>' +
+          '<div><b>A</b> ' + (esc(v.avaliacao) || '<span class="text-muted">—</span>') + '</div>' +
+          '<div><b>P</b> ' + (esc(v.plano) || '<span class="text-muted">—</span>') + '</div></div>' +
+          (atual ? '' : '<div class="small text-muted mt-1">Arquivada em ' + esc(v.arquivadoEm) + ' por ' + esc(v.arquivadoPor) + '</div>') + '</div>';
+      }
+      var linhas = bloco(r.atual, true) + (r.versoes || []).map(function (v) { return bloco(v, false); }).join('');
+      var div = document.createElement('div');
+      div.innerHTML = '<div class="modal fade" id="modalVersoesEvo" tabindex="-1"><div class="modal-dialog modal-lg modal-dialog-scrollable"><div class="modal-content">' +
+        '<div class="modal-header"><h5 class="modal-title"><i class="bi bi-clock-history me-2"></i>Histórico de versões</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>' +
+        '<div class="modal-body"><p class="small text-muted">A versão ' + esc(r.versaoAtual) + ' (atual) é a que aparece no prontuário; as anteriores são preservadas para auditoria.</p>' + linhas + '</div></div></div></div>';
+      var antigo = el('modalVersoesEvo'); if (antigo) antigo.parentNode.removeChild(antigo);
+      document.body.appendChild(div.firstChild);
+      var modalEl = el('modalVersoesEvo');
+      modalEl.addEventListener('hidden.bs.modal', function () { if (modalEl.parentNode) modalEl.parentNode.removeChild(modalEl); });
+      bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    }).withFailureHandler(function (e) { toast(e && e.message ? e.message : 'Falha ao carregar o histórico de versões.', 'erro'); })
+      .listarVersoesEvolucao({ idEvolucao: idEvolucao });
+  }
   function pepAbrirPrescricao() {
     if (!dados) return;
     ['prescDescricao', 'prescDose', 'prescVia', 'prescFrequencia', 'prescObservacao', 'prescProfissional'].forEach(function (id) { el(id).value = ''; });
@@ -177,7 +207,7 @@
       .withFailureHandler(function (e) { toast(e && e.message ? e.message : 'Não foi possível alterar.', 'erro'); })
       .atualizarStatusPrescricao({ idPrescricao: idPrescricao, status: status });
   }
-  function pepAbrir(idInternacao) { window.open('/?view=prontuario&token=' + encodeURIComponent(tokenAtual()) + '&id=' + encodeURIComponent(idInternacao), '_blank'); }
+  function pepAbrir(idInternacao) { window.open('/?view=prontuario&id=' + encodeURIComponent(idInternacao), '_blank'); }
 
   function pepBaixarCSV() {
     if (!dados) { toast('Nada para exportar ainda.', 'erro'); return; }
@@ -201,6 +231,7 @@
   window.pepAbrirEvolucao = pepAbrirEvolucao;
   window.pepSalvarEvolucao = pepSalvarEvolucao;
   window.pepExcluirEvolucao = pepExcluirEvolucao;
+  window.pepVerVersoes = pepVerVersoes;
   window.pepAbrirPrescricao = pepAbrirPrescricao;
   window.pepSalvarPrescricao = pepSalvarPrescricao;
   window.pepStatusPrescricao = pepStatusPrescricao;
