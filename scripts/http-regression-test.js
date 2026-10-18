@@ -20,15 +20,29 @@ module.exports=async function({A,q,ctx}){
  r=await invoke(cadsus,{method:'GET',query:{cpf:'00000000000'},headers:{cookie}});assert.notEqual(r.code,401);
  r=await invoke(rpc,{method:'POST',query:{fn:'obterPainelChamadas'},body:{args:[]}});assert.equal(r.code,200);
  const malicious="</script><img src=x onerror=window.__xss=1>'\\\"";
- const views=['painel','dashboard','dashboardgeral','nir','historico','acr','kanban','prontuario','bi','chamada'];
+ const views=['painel','dashboard','dashboardgeral','nir','historico','acr','kanban','prontuario','bi','chamada','configuracoes'];
  for(const view of views){
   r=await invoke(page,{query:{view,setor:malicious,id:malicious},headers:{cookie}});assert.equal(r.code,200);assert.ok(!r.body.includes(token));assert.ok(!r.body.includes('<?!='));assert.ok(r.body.includes('/natus-rpc.js?v=20261018-leitos'));
   for(const m of r.body.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi))acorn.parse(m[1],{ecmaVersion:'latest'});
   assert.ok(!r.body.includes('<img src=x onerror=window.__xss=1>'));
  }
+ // Personalização do menu (SSR): ocultar um módulo remove o atalho do trilho, sem afetar a rota.
+ await q("INSERT INTO permissoes_menu(perfil,modulo_chave,visivel) VALUES('NIR','dashboardgeral',false) ON CONFLICT (perfil,modulo_chave) DO UPDATE SET visivel=false");
+ r=await invoke(page,{query:{view:'nir'},headers:{cookie}});
+ assert.ok(r.body.includes('data-modulo="nir"'));assert.ok(!r.body.includes('data-modulo="dashboardgeral"'));
+ await q("UPDATE permissoes_menu SET visivel=true WHERE perfil='NIR' AND modulo_chave='dashboardgeral'");
+ // Tela de Configurações: exclusiva do Administrador (promove o usuário, reautentica e revalida).
+ await q("UPDATE usuarios SET administrador=true WHERE nome='Teste'");
+ r=await invoke(rpc,{method:'POST',query:{fn:'autenticar'},headers:base,body:{args:['Teste','senha-teste']}});
+ assert.equal(r.code,200);
+ const cookieAdm=r.headers['set-cookie'].split(';')[0];
+ r=await invoke(page,{query:{view:'configuracoes'},headers:{cookie:cookieAdm}});
+ assert.equal(r.code,200);assert.ok(r.body.includes('id="tabela-permissoes-body"'));assert.ok(r.body.includes('data-modulo="configuracoes"'));assert.ok(!r.body.includes('<?!='));
+ for(const m of r.body.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi))acorn.parse(m[1],{ecmaVersion:'latest'});
+ await q("UPDATE usuarios SET administrador=false WHERE nome='Teste'");
  // Source parse: todos os JS e scripts inline, inclusive módulos novos preservados.
  function parseDir(dir){for(const f of fs.readdirSync(dir,{withFileTypes:true})){if(f.isDirectory())parseDir(path.join(dir,f.name));else if(f.name.endsWith('.js'))acorn.parse(fs.readFileSync(path.join(dir,f.name),'utf8'),{ecmaVersion:'latest'});}}
  for(const dir of ['lib','api','public'])parseDir(dir);
- console.log('OK: API cookie-only, login sem token no JSON, CSRF/origem, URL legada limpa, TV pública e sintaxe/escape das 10 telas.');
+ console.log('OK: API cookie-only, login sem token no JSON, CSRF/origem, URL legada limpa, TV pública, personalização do menu (SSR), tela de Configurações do Administrador e sintaxe/escape das 11 telas.');
  if(process.env.NATUS_PLAYWRIGHT_PATH)await require('./ui-browser-test')({invoke,page,rpc,cookie,headers,q});
 };

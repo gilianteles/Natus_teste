@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { validarSessao } = require('../lib/auth');
 const { ehPerfilNIR, ehPerfilAdministrativo, ehPerfilAdministrador } = require('../lib/regras');
+const CFG = require('../lib/configuracoes');
 const SEC = require('../lib/http-security');
 const shell = require('../lib/shell');
 
@@ -13,11 +14,11 @@ const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({ '&': '&a
 const TITULOS = { login: 'Natus - Login', nir: 'Natus - Painel NIR/SAME', dashboardgeral: 'Dashboard Geral - Natus', historico: 'Natus - Histórico de Pacientes',
   acr: 'Natus - ACR (Acolhimento e Classificação de Risco)', kanban: 'Natus - Kanban de Regulação (NIR)',
   prontuario: 'Natus - Prontuário Eletrônico (PEP)', bi: 'Natus - Indicadores e BI Gerencial',
-  chamada: 'Natus - Painel de Atendimento (TV)' };
+  chamada: 'Natus - Painel de Atendimento (TV)', configuracoes: 'Natus - Configurações (menu por perfil)' };
 
-const ATIVO = { painel: 'painel', dashboard: 'dashboard', nir: 'nir', historico: 'historico', dashboardgeral: 'dashboardgeral', acr: 'acr', kanban: 'kanban', prontuario: 'prontuario', bi: 'bi' };
+const ATIVO = { painel: 'painel', dashboard: 'dashboard', nir: 'nir', historico: 'historico', dashboardgeral: 'dashboardgeral', acr: 'acr', kanban: 'kanban', prontuario: 'prontuario', bi: 'bi', configuracoes: 'configuracoes' };
 // Scripts adicionais por tela (servidos de /public com cache-busting por data de modificação).
-const EXTRA = { painel: 'natus-painel.js', acr: 'natus-acr.js', kanban: 'natus-kanban.js', prontuario: 'natus-prontuario.js', bi: 'natus-bi.js', chamada: 'natus-chamada.js' };
+const EXTRA = { painel: 'natus-painel.js', acr: 'natus-acr.js', kanban: 'natus-kanban.js', prontuario: 'natus-prontuario.js', bi: 'natus-bi.js', chamada: 'natus-chamada.js', configuracoes: 'natus-configuracoes.js' };
 
 /* Placeholders dos views: <!--@head-->, <!--@rail-->, <!--@useractions-->; e as variáveis <?!= nome ?>. */
 function render(nome, vars, titulo, ctx) {
@@ -27,7 +28,7 @@ function render(nome, vars, titulo, ctx) {
   const extra = arquivo ? `\n  <script defer src="/${arquivo}?v=${shell.versao(arquivo)}"></script>` : '';
   html = html.replace('<!--@head-->', () => shell.head(extra));
   if (ctx) {
-    html = html.replace('<!--@rail-->', () => shell.rail({ ativo: ATIVO[nome], token: vars.token, adm: ctx.adm, nir: ctx.nir, admin: ctx.admin, setor: vars.setorParam || (ctx.nir ? 'UTIN 1' : ctx.setor), nome: vars.nomeUsuario }));
+    html = html.replace('<!--@rail-->', () => shell.rail({ ativo: ATIVO[nome], token: vars.token, adm: ctx.adm, nir: ctx.nir, admin: ctx.admin, setor: vars.setorParam || (ctx.nir ? 'UTIN 1' : ctx.setor), nome: vars.nomeUsuario, permissoes: ctx.permissoes }));
     html = html.replace('<!--@useractions-->', () => shell.userActions({ nome: vars.nomeUsuario, perfil: vars.perfilUsuario, setor: ctx.nir ? '' : ctx.setor }));
   }
   // Valores dentro de scripts exigem escape JavaScript, não entidades HTML.
@@ -87,7 +88,11 @@ module.exports = async function handler(req, res) {
     const adm = ehPerfilAdministrativo(sessao.perfil), nir = ehPerfilNIR(sessao.perfil);
     const admin = ehPerfilAdministrador(sessao.perfil) || sessao.administrador === true;   // FASE 3: gestão de usuários
     const setorDe = padrao => (nir ? (String(q.setor || padrao).trim() || padrao) : sessao.setor);
-    const ctx = { adm, nir, admin, setor: sessao.setor || '' };
+    // Personalização do menu lateral do perfil (apenas exibição). Administradores preservam o
+    // acesso às Configurações para não perderem o próprio caminho de volta.
+    const permissoes = await CFG.permissoesEfetivas(sessao.perfil);
+    if (admin) permissoes.configuracoes = true;
+    const ctx = { adm, nir, admin, setor: sessao.setor || '', permissoes };
     const painel = setor => res.send(render('painel', { ...base, setorParam: setor }, `Natus - ${setor}`, ctx));
 
     if (view === 'dashboard') { const s = setorDe('UTIN 1'); return res.send(render('dashboard', { ...base, setorParam: s }, `Natus - Dashboard - ${s}`, ctx)); }
@@ -97,6 +102,8 @@ module.exports = async function handler(req, res) {
     // Kanban de regulação: restrito aos perfis de gestão (NIR/SAME/GESTÃO/Administrador).
     if (view === 'kanban') return adm ? res.send(render('kanban', base, TITULOS.kanban, ctx)) : painel(sessao.setor);
     if (view === 'nir' || view === 'usuarios') return adm ? res.send(render('nir', base, TITULOS.nir, ctx)) : painel(sessao.setor);
+    // Configurações — personalização do menu lateral por perfil: exclusiva do Administrador.
+    if (view === 'configuracoes') return admin ? res.send(render('configuracoes', base, TITULOS.configuracoes, ctx)) : painel(sessao.setor);
     if (view === 'historico') return res.send(render('historico', base, TITULOS.historico, ctx));
     if (view === 'dashboardgeral') return adm ? res.send(render('dashboardgeral', base, TITULOS.dashboardgeral, ctx)) : painel(sessao.setor);
     // FASE 4 — Prontuário Eletrônico (PEP): aberto a qualquer colaborador autenticado; o acesso ao

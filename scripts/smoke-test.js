@@ -192,6 +192,22 @@ let n = 0; const ok = m => console.log(`  ✔ ${++n}. ${m}`);
   const buscaNome = await call('buscarPacientesPorNome', 'x', 'Mãe ACR'); assert.equal(buscaNome.length, 1); ok('paciente do ACR disponível no histórico');
   assert.match(await falha('obterEstatisticasDashboardGeral', 'Todos', 1, 2026), /restrito/); ok('dashboard geral restrito ao perfil de setor');
 
+  console.log('Configurações — visibilidade do menu por perfil');
+  const loginAdm2 = await call('autenticar', 'admin teste', 'abcdef1'); assert.ok(Array.isArray(loginAdm2.permissoesMenu)); ok('login devolve a personalização do menu do perfil');
+  sess = ADMIN;
+  const matrizMenu = await call('obterMatrizPermissoesMenu', 'x');
+  assert.ok(matrizMenu.perfis.includes('Setor') && matrizMenu.modulos.length === 10); ok('matriz de permissões do menu carregada');
+  assert.equal(matrizMenu.elegiveis['Setor'].bi, false); ok('módulos de gestão não são elegíveis para o perfil Setor');
+  sess = await validarSessao(loginNir.token);
+  assert.match(await falha('atualizarPermissaoMenu', 'x', { perfil: 'Setor', modulo_chave: 'censo', visivel: false }), /Administrador/); ok('perfil NIR não altera a visibilidade do menu');
+  assert.equal((await call('obterPermissoesMenu', 'x', 'Setor')).find(p => p.modulo_chave === 'censo').visivel, true); ok('usuário comum lê apenas a própria personalização');
+  sess = ADMIN;
+  await call('atualizarPermissaoMenu', 'x', { perfil: 'Setor', modulo_chave: 'censo', visivel: false }); ok('Administrador oculta o Censo para o perfil Setor');
+  assert.equal((await call('obterPermissoesMenu', 'x', 'Setor')).find(p => p.modulo_chave === 'censo').visivel, false); ok('leitura confirma a personalização alterada');
+  assert.match(await falha('atualizarPermissaoMenu', 'x', { perfil: 'Setor', modulo_chave: 'bi', visivel: true }), /não tem acesso/); ok('módulo inelegível ao perfil não pode ser personalizado');
+  assert.match(await falha('atualizarPermissaoMenu', 'x', { perfil: 'Administrador', modulo_chave: 'censo', visivel: false }), /fixo/); ok('menu do Administrador é fixo (sem perda de acesso)');
+  await call('atualizarPermissaoMenu', 'x', { perfil: 'Setor', modulo_chave: 'censo', visivel: true }); ok('Administrador restaura a visibilidade');
+
   console.log('FASE 4 — Prontuário Eletrônico (PEP): SOAP, prescrições e binômio Mãe-Bebê');
   sess = ADMIN;
   // Giro de leitos: concluir higienização devolve o leito à operação.

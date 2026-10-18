@@ -135,11 +135,102 @@
     }
   }
 
+  /* ---------- Barra lateral retrátil (alternada ao clicar na logo) ---------- */
+  var SIDEBAR_KEY = 'natus_sidebar_collapsed';
+  var RAIL_SEL = '.nt-rail, .sidebar, #sidebar';
+
+  function sidebarEl() { return document.querySelector(RAIL_SEL); }
+  function ehDesktop() {
+    try { return !window.matchMedia || window.matchMedia('(min-width: 992px)').matches; } catch (e) { return true; }
+  }
+  function alcaRestaurar() {
+    var b = document.getElementById('ntSidebarRestore');
+    if (b) return b;
+    b = document.createElement('button');
+    b.type = 'button';
+    b.id = 'ntSidebarRestore';
+    b.className = 'nt-rail-restore';
+    b.setAttribute('aria-label', 'Mostrar o menu lateral');
+    b.setAttribute('title', 'Mostrar o menu lateral');
+    b.innerHTML = '<i class="bi bi-layout-sidebar-inset"></i>';
+    b.addEventListener('click', function () { toggleSidebarState(); });
+    (document.body || document.documentElement).appendChild(b);
+    return b;
+  }
+  // Aplica o estado recolhido (classe global no body + classe no trilho). No mobile o trilho é
+  // uma barra inferior: o recolhimento não se aplica.
+  function applySidebarState(collapsed) {
+    collapsed = !!collapsed && ehDesktop();
+    var r = sidebarEl();
+    if (r) r.classList.toggle('collapsed', collapsed);
+    if (document.body) document.body.classList.toggle('sidebar-collapsed', collapsed);
+    var b = document.getElementById('ntSidebarRestore');
+    if (collapsed) { b = alcaRestaurar(); b.classList.add('show'); }
+    else if (b) b.classList.remove('show');
+    return collapsed;
+  }
+  function toggleSidebarState() {
+    var recolhido = !(document.body && document.body.classList.contains('sidebar-collapsed'));
+    var aplicado = applySidebarState(recolhido);
+    try { localStorage.setItem(SIDEBAR_KEY, aplicado ? 'true' : 'false'); } catch (e) {}
+    return aplicado;
+  }
+  function iniciarSidebar() {
+    var r = sidebarEl();
+    if (!r) return;
+    var logo = document.getElementById('btnToggleSidebar') || r.querySelector('.nt-rail-brand');
+    if (logo) {
+      logo.style.cursor = 'pointer';
+      // preventDefault evita redirecionamento caso a logo vire um link estático.
+      logo.addEventListener('click', function (e) { if (e && e.preventDefault) e.preventDefault(); toggleSidebarState(); });
+      logo.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ' || e.keyCode === 13 || e.keyCode === 32) {
+          if (e.preventDefault) e.preventDefault();
+          toggleSidebarState();
+        }
+      });
+    }
+    try { if (localStorage.getItem(SIDEBAR_KEY) === 'true') applySidebarState(true); } catch (e) {}
+    // Ao voltar para o desktop, restaura a preferência salva; no mobile mantém o trilho normal.
+    try {
+      var mq = window.matchMedia('(min-width: 992px)');
+      var aoMudar = function () { applySidebarState(localStorage.getItem(SIDEBAR_KEY) === 'true'); };
+      if (mq.addEventListener) mq.addEventListener('change', aoMudar);
+      else if (mq.addListener) mq.addListener(aoMudar);
+    } catch (e) {}
+  }
+
+  /* ---------- Visibilidade dinâmica do menu por perfil ---------- */
+  // Aplica a personalização (Configurações) a qualquer item marcado com data-modulo. A regra
+  // apenas OCULTA/mostra botões; a segurança das rotas permanece no servidor.
+  function aplicarVisibilidadeMenu(permissoes) {
+    if (!Array.isArray(permissoes)) return;
+    var mapa = {};
+    permissoes.forEach(function (item) {
+      if (!item) return;
+      var chave = item.modulo_chave != null ? item.modulo_chave : item.chave;
+      if (chave) mapa[String(chave)] = item.visivel === true || item.visivel === 'true';
+    });
+    document.querySelectorAll('[data-modulo]').forEach(function (el) {
+      var chave = el.getAttribute('data-modulo');
+      var visivel = mapa[chave];
+      var oculto = visivel === false;
+      el.style.display = oculto ? 'none' : '';
+      el.classList.toggle('nt-menu-hidden', oculto);
+      el.setAttribute('aria-hidden', oculto ? 'true' : 'false');
+    });
+  }
+
   window.NatusUI = {
     alternarTema: alternarTema, definirTema: definirTema, temaAtual: temaAtual, sair: sairPadrao,
+    alternarSidebar: toggleSidebarState, aplicarSidebarState: applySidebarState, aplicarVisibilidadeMenu: aplicarVisibilidadeMenu,
     cor: function (n) { return cssVar('--' + n); }
   };
+  // API global pedida pela especificação de UX (usada também pelas telas que já a referenciam).
+  window.toggleSidebarState = toggleSidebarState;
+  window.applySidebarState = applySidebarState;
+  window.aplicarVisibilidadeMenu = aplicarVisibilidadeMenu;
 
-  function pronto() { definirTema(temaAtual(), false); iniciarRail(); }
+  function pronto() { definirTema(temaAtual(), false); iniciarRail(); iniciarSidebar(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', pronto); else pronto();
 })();

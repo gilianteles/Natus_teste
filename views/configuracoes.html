@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Natus - Configurações</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <script src="/natus-rpc.js"></script>
+  <!--@head-->
+</head>
+<body class="nt-body">
+<div class="app-shell">
+  <!--@rail-->
+
+  <section class="content">
+    <header class="nt-topbar">
+      <div>
+        <div class="nt-crumb"><span>Natus</span><i class="bi bi-chevron-right"></i><span>Configurações</span><i class="bi bi-chevron-right"></i><span>Menu</span></div>
+        <h1 class="nt-title">Personalização da barra de menu</h1>
+      </div>
+      <div class="nt-actions">
+        <span class="nt-chip"><i class="bi bi-shield-lock-fill"></i>Somente Administrador</span>
+        <button class="btn btn-light btn-sm" onclick="carregarPermissoesMenu()" title="Atualizar"><i class="bi bi-arrow-clockwise me-1"></i>Atualizar</button>
+        <!--@useractions-->
+      </div>
+    </header>
+
+    <main class="main nt-page">
+      <div class="hero"><div class="position-relative" style="z-index:1">
+        <h2>Quais botões cada perfil enxerga</h2>
+        <p>Defina os itens da barra lateral exibidos para cada perfil de acesso. Este ajuste é apenas visual: a segurança das rotas permanece validada no servidor.</p>
+      </div></div>
+
+      <div class="alert alert-info small d-flex align-items-start gap-2" role="alert">
+        <i class="bi bi-info-circle-fill mt-1"></i>
+        <div>
+          <b>Personalização de experiência (UX).</b> Ocultar um botão esconde apenas o atalho do menu —
+          as permissões de acesso às telas e às funções continuam sendo verificadas no servidor
+          (<code>lib/auth.js</code> e guardas de tela). O perfil <b>Administrador</b> é fixo, para que esta
+          própria tela nunca saia do menu.
+        </div>
+      </div>
+
+      <div class="card p-4">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+          <div>
+            <h4 class="mb-1"><i class="bi bi-sliders2 text-primary me-2"></i>Matriz de visibilidade do menu</h4>
+            <p class="text-muted mb-0">Cada coluna é um perfil de acesso; cada linha, um botão do menu lateral. Marque para exibir, desmarque para ocultar.</p>
+          </div>
+          <span class="badge rounded-pill text-bg-light border" id="contadorPerfis">—</span>
+        </div>
+
+        <div id="statusPermissoes" class="alert alert-light border small mt-3 mb-0 d-none" role="status"></div>
+
+        <div class="table-responsive mt-3">
+          <table class="table table-hover align-middle mb-0" id="tabelaPermissoes">
+            <thead id="tabela-permissoes-head"></thead>
+            <tbody id="tabela-permissoes-body">
+              <tr><td class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm text-info"></span> Carregando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="text-muted small mt-3 mb-0"><i class="bi bi-dash-circle me-1"></i>Células com “—” indicam módulos que o perfil não acessa (a rota é restrita); não é possível personalizá-los.</p>
+      </div>
+    </main>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+  const token = "<?!= token ?>", appUrl = "<?!= appUrl ?>";
+  window.CFG = { token: token, appUrl: appUrl };
+</script>
+</body>
+</html>

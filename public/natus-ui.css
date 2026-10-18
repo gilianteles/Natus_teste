@@ -133,7 +133,7 @@ hr { border-color: var(--border); opacity: 1; }
 
 /* ---------- 3. Shell: trilho lateral + barra superior ---------- */
 .nt-rail {
-  position: fixed; z-index: 1030;
+  position: fixed; z-index: 1020;
   top: var(--rail-gap); bottom: var(--rail-gap); left: var(--rail-gap);
   width: var(--rail);
   display: flex; flex-direction: column; align-items: center; gap: 6px;
@@ -142,6 +142,7 @@ hr { border-color: var(--border); opacity: 1; }
   border: 1px solid var(--border);
   border-radius: 26px;
   box-shadow: var(--shadow);
+  transition: transform .3s cubic-bezier(.4, 0, .2, 1), opacity .3s ease;
 }
 .nt-rail-brand { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; margin-bottom: 10px; background: var(--primary-soft); }
 .nt-rail-brand img { width: 30px; height: 30px; object-fit: contain; }
@@ -170,6 +171,35 @@ hr { border-color: var(--border); opacity: 1; }
   background: var(--deep); color: #fff; font: 800 13px var(--font); letter-spacing: .02em; position: relative;
 }
 .nt-avatar::after { content: ''; position: absolute; right: -1px; bottom: -1px; width: 11px; height: 11px; border-radius: 50%; background: #34D399; border: 2px solid var(--card); }
+
+/* ---------- 3.1 Empilhamento: menus de ação acima do trilho lateral ----------
+   O trilho fica no nível do cabeçalho (sticky). Os menus flutuantes (dropdowns de Ações do
+   leito, popovers) passam a ficar por cima dele, porém abaixo do Offcanvas de detalhes (1045)
+   e dos modais — preservando a regra de "menus dos cards nunca ultrapassam o Offcanvas". */
+.dropdown-menu, .popover { z-index: 1035 !important; }
+/* Cards de leito com o menu de Ações aberto (ou sob o cursor/foco) sobem acima do trilho. */
+.bed-card:hover, .bed-card:focus-within,
+.bed-card:has(.acoes-dropdown .dropdown-menu.show) { z-index: 1040; }
+.acoes-dropdown:focus-within { z-index: 1041; }
+
+/* ---------- 3.2 Barra lateral retrátil (alternada pela logo) ---------- */
+.nt-rail-brand { cursor: pointer; }
+body.nt-body { transition: padding-left .3s cubic-bezier(.4, 0, .2, 1); }
+.nt-rail.collapsed { transform: translateX(calc(-100% - var(--rail-gap) * 2)); opacity: 0; pointer-events: none; }
+body.sidebar-collapsed.nt-body { padding-left: 0; }
+/* Alça para reexibir o menu quando recolhido (criada pelo natus-ui.js). */
+.nt-rail-restore {
+  position: fixed; left: 0; top: 50%;
+  transform: translateY(-50%) translateX(-110%);
+  width: 32px; height: 62px; padding: 0;
+  border: 1px solid var(--border); border-left: 0; border-radius: 0 14px 14px 0;
+  background: var(--card); color: var(--primary);
+  display: grid; place-items: center; font-size: 17px; box-shadow: var(--shadow);
+  cursor: pointer; z-index: 1030; opacity: 0; pointer-events: none;
+  transition: transform .3s cubic-bezier(.4, 0, .2, 1), opacity .2s ease, background .16s;
+}
+.nt-rail-restore.show { transform: translateY(-50%) translateX(0); opacity: 1; pointer-events: auto; }
+.nt-rail-restore:hover { background: var(--primary-soft); }
 
 .nt-topbar {
   position: sticky; top: 0; z-index: 1020;
@@ -524,6 +554,8 @@ body.nt-login .nt-theme-float { position: fixed; top: 18px; right: 18px; display
   .nt-page, .container-fluid.px-4 { padding-inline: 16px !important; }
   .content-wrap { padding: 4px 16px 30px !important; }
   .offcanvas { border-radius: 24px 24px 0 0; }
+  /* No mobile o trilho vira barra inferior: não há recolhimento por logo. */
+  .nt-rail-restore { display: none !important; }
 }
 @media (max-width: 575.98px) {
   #grid-leitos { grid-template-columns: 1fr; }
@@ -540,7 +572,7 @@ body.nt-login .nt-theme-float { position: fixed; top: 18px; right: 18px; display
 
 /* ---------- 15. Impressão (relatórios/histórico sempre em claro) ---------- */
 @media print {
-  .nt-rail, .nt-topbar { display: none !important; }
+  .nt-rail, .nt-topbar, .nt-rail-restore { display: none !important; }
   body.nt-body { padding: 0 !important; background: #fff !important; color: #000; }
   :root { --card: #fff; --bg: #fff; --text: #000; --border: #ddd; --muted: #555; }
   .card, .chart-box { box-shadow: none !important; }

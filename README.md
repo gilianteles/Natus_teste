@@ -111,6 +111,23 @@ negócio (UEN/vaga zero, binômio ALCON, censo às 24h, mortalidade, Método Can
   (4) **indicadores neonatais**: a **Mãe é excluída** dos denominadores específicos de RN (faixa de peso e sexo) nos setores
   neonatais; corrigido também um bug de acentuação em `normalizarParto` (cesárea/fórceps iam para "Outros").
 
+### FASE 7 — UX: empilhamento dos menus, barra lateral retrátil e personalização do menu por perfil
+- **Correção de empilhamento (z-index)**: os menus de ação do leito (dropdowns de **Ações**), popovers e demais menus flutuantes
+  passam a ficar **acima do trilho lateral** (`public/natus-ui.css`: trilho em `z-index:1020`; menus em `1035`; cards de leito
+  com o menu aberto/sob o cursor em `1040`), preservando a ordem original com o **Offcanvas de detalhes (1045)** e os modais.
+  Ajuste local equivalente em `views/painel.html`.
+- **Barra lateral retrátil**: clicar na **logo** (`.nt-rail-brand`, `#btnToggleSidebar`) recolhe/reexpõe o menu lateral
+  (`public/natus-ui.js` → `toggleSidebarState`/`applySidebarState`), com a preferência salva em `localStorage`
+  (`natus_sidebar_collapsed`) e uma alça para reexibir o menu. No celular (barra inferior) o recolhimento não se aplica.
+- **Configurações — menu por perfil** (`/?view=configuracoes`, exclusiva do perfil **Administrador**): matriz de visibilidade dos
+  botões da barra lateral por perfil de acesso (tabela `permissoes_menu`, migração `db/migrations/20261018_permissoes_menu.sql`;
+  módulo `lib/configuracoes.js`; tela `views/configuracoes.html` + `public/natus-configuracoes.js`; RPCs `obterPermissoesMenu`,
+  `obterMatrizPermissoesMenu` e `atualizarPermissaoMenu`). O login devolve `permissoesMenu` do perfil e a barra é renderizada já
+  filtrada (`lib/shell.js`, itens com `data-modulo`); no cliente, `aplicarVisibilidadeMenu` aplica a regra dinamicamente.
+  **É apenas exibição (UX)**: nenhuma rota/RPC de negócio muda de assinatura e a segurança permanece em `lib/auth.js` e nas
+  guardas de tela — ocultar um botão não concede nem remove acesso. O perfil Administrador é fixo, para que a própria tela de
+  Configurações nunca saia do menu.
+
 
 ## Implantação (≈10 min)
 1. **Banco**: crie um PostgreSQL gratuito (Neon, Supabase ou Vercel Postgres, região São Paulo/`gru1` se disponível) e copie a `DATABASE_URL` (versão *pooled*).
@@ -147,6 +164,7 @@ convertidas a scrypt no 1º login), Pele a Pele e Indicadores. Roda em transaç�
 - Escritas são transações com trava global (`pg_advisory_xact_lock`), substituindo o `LockService`.
 - A sessão vive em **cookie HttpOnly** (`natus_sessao`, `SameSite=Lax`; `Secure` em HTTPS): o token **não trafega mais na URL**. Tokens por `Authorization: Bearer`/`?token=` não autenticam mais. Links antigos são redirecionados sem o token; faça novo login. O banco guarda somente o hash do token.
 - As permissões da sessão são **revalidadas a cada requisição** contra o cadastro do usuário: mudar perfil/setor/nível administrativo ou inativar/remover o usuário revoga o acesso na hora.
+- A **personalização do menu lateral por perfil** (`permissoes_menu`) altera apenas a **exibição** dos botões (UX); as permissões de rota continuam sendo aplicadas no servidor. O perfil **Administrador** é imutável nessa matriz.
 - **CSP** aplicada nas páginas (bloqueia `object-src`, fixa `base-uri`/`frame-ancestors`/`form-action`); todo texto dinâmico é escapado no servidor (`escaparHtml`/`jsonSeguro`) e no cliente (`esc`), evitando XSS armazenado/refletido.
 - A **evolução clínica SOAP nunca é apagada fisicamente**: a exclusão é lógica (`excluido`) e as retificações/cancelamentos geram versões imutáveis com autor, data e motivo. O conteúdo anterior permanece consultável no prontuário.
 - Consultas por CPF ao **CADSUS** passam por um **proxy de servidor** (`lib/cadsus.js` / `/api/cadsus`): nenhuma credencial de API fica no front-end. Sem `CADSUS_API_URL` configurada, usa a base interna do Natus.

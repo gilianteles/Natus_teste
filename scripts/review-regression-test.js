@@ -39,3 +39,45 @@ async function test(mode,name='trocarLeito'){
  if(['timeout','body-timeout','network'].includes(mode))assert.match(out.e.message,/pode ter sido concluída/);
 }
 (async()=>{for(const m of ['success','timeout','body-timeout','network','invalid','server'])await test(m);await test('success','getPainelOperacionalData');console.log('OK: RPC sucesso, timeout conexão/corpo, rede, JSON inválido, regra; gravação única; outros RPCs preservados.');})().catch(e=>{console.error(e);process.exitCode=1;});
+
+// Barra lateral retrátil (logo) e visibilidade dinâmica do menu por perfil — isolado, sem DOM real.
+const criados=[];
+function fakeEl(tag){
+ const el={tagName:tag,style:{},dataset:{},attrs:{},handlers:{},_html:'',classes:new Set(),
+  classList:{add:c=>el.classes.add(c),remove:c=>el.classes.delete(c),
+   toggle:(c,on)=>{if(on===undefined)on=!el.classes.has(c);on?el.classes.add(c):el.classes.delete(c);return on;},
+   contains:c=>el.classes.has(c)},
+  setAttribute(k,v){el.attrs[k]=String(v);},getAttribute(k){return k in el.attrs?el.attrs[k]:null;},hasAttribute(k){return k in el.attrs;},
+  appendChild(c){return c;},addEventListener(t,f){(el.handlers[t]=el.handlers[t]||[]).push(f);},
+  querySelector(){return null;},querySelectorAll(){return [];},
+  set innerHTML(v){el._html=v;},get innerHTML(){return el._html;}};
+ return el;
+}
+const rail=fakeEl('aside'),logo=fakeEl('div'),bodyEl=fakeEl('body'),rootEl=fakeEl('html'),itensModulo=[];
+const store={};
+const matchMedia=q=>({matches:true,addEventListener(){},addListener(){}});
+const doc={readyState:'complete',documentElement:rootEl,body:bodyEl,
+ getElementById:id=>id==='btnToggleSidebar'?logo:(id==='ntSidebarRestore'?criados.filter(e=>e.id===id)[0]||null:null),
+ querySelector:sel=>sel.indexOf('nt-rail')>=0?rail:null,
+ querySelectorAll:sel=>sel.indexOf('data-modulo')>=0?itensModulo:[],
+ createElement:t=>{const e=fakeEl(t);criados.push(e);return e;},addEventListener(){},dispatchEvent(){}};
+const win={matchMedia};
+vm.runInNewContext(fs.readFileSync(path.join(root,'public/natus-ui.js'),'utf8'),{document:doc,window:win,localStorage:{getItem:k=>k in store?store[k]:null,setItem:(k,v)=>{store[k]=String(v);}},
+ getComputedStyle:()=>({getPropertyValue:()=>''}),matchMedia,console,URLSearchParams,CustomEvent:function(t,d){this.type=t;this.detail=d;}});
+const UI=win.NatusUI;
+assert.equal(typeof UI.alternarSidebar,'function');assert.equal(typeof win.aplicarVisibilidadeMenu,'function');
+// Estado recolhido aplicado globalmente e alça de restauração visível.
+assert.equal(UI.aplicarSidebarState(true),true);assert.ok(bodyEl.classList.contains('sidebar-collapsed'));assert.ok(rail.classList.contains('collapsed'));
+const alca=criados.filter(e=>e.id==='ntSidebarRestore')[0];assert.ok(alca&&alca.classList.contains('show'));
+// A logo alterna (e previne navegação estática), gravando a preferência.
+assert.ok(logo.handlers.click[0]);logo.handlers.click[0]({preventDefault(){}});
+assert.equal(bodyEl.classList.contains('sidebar-collapsed'),false);assert.equal(store['natus_sidebar_collapsed'],'false');assert.equal(alca.classList.contains('show'),false);
+logo.handlers.click[0]({preventDefault(){}});
+assert.ok(bodyEl.classList.contains('sidebar-collapsed'));assert.equal(store['natus_sidebar_collapsed'],'true');
+// Visibilidade por perfil: só oculta o que a regra marcar como falso; restaura os demais.
+const a=fakeEl('a');a.attrs['data-modulo']='censo';const b=fakeEl('a');b.attrs['data-modulo']='bi';itensModulo.push(a,b);
+win.aplicarVisibilidadeMenu([{modulo_chave:'censo',visivel:true},{modulo_chave:'bi',visivel:false}]);
+assert.equal(a.style.display,'');assert.equal(b.style.display,'none');assert.ok(b.classList.contains('nt-menu-hidden'));
+win.aplicarVisibilidadeMenu([{modulo_chave:'bi',visivel:true}]);
+assert.equal(b.style.display,'');assert.equal(b.classList.contains('nt-menu-hidden'),false);
+console.log('OK: barra lateral recolhível pela logo (persistida em localStorage) e visibilidade do menu por perfil.');

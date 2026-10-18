@@ -5,7 +5,7 @@ const {PGlite}=require('@electric-sql/pglite');const db=new PGlite(),parsers={};
 const q=async(sql,args=[])=>{const ps=args.map(v=>v instanceof Date?`${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')} ${String(v.getHours()).padStart(2,'0')}:${String(v.getMinutes()).padStart(2,'0')}:${String(v.getSeconds()).padStart(2,'0')}`:v);const r=await db.query(sql,ps,{parsers});return {...r,rowCount:r.affectedRows===undefined?r.rows.length:r.affectedRows};};
 class Pool{query(...a){return q(...a);}async connect(){return {query:q,release(){}};}on(){}async end(){}}
 require.cache[require.resolve('pg')]={loaded:true,exports:{Pool,types:{setTypeParser:(id,fn)=>parsers[id]=fn}}};process.env.DATABASE_URL='isolated-test-only';
-const O=require('../lib/operacoes'),C=require('../lib/calc'),D=require('../lib/data'),A=require('../lib/auth'),CL=require('../lib/clinica'),Q=require('../lib/qualidade');
+const O=require('../lib/operacoes'),C=require('../lib/calc'),D=require('../lib/data'),A=require('../lib/auth'),CL=require('../lib/clinica'),Q=require('../lib/qualidade'),CFG=require('../lib/configuracoes');
 const ctx={sessao:{nome:'Teste',perfil:'NIR',setor:'',administrador:true}};
 const report=(s,a,b)=>C.calcularIndicadoresPeriodo(D.criarContexto(),s,a,b),one=async(s,p)=>(await q(s,p)).rows[0];
 async function bed(id,s){await q("INSERT INTO leitos(id_leito,setor_nome,numero_leito,status) VALUES($1,$2,$1,'Livre')",[id,s]);}
@@ -74,9 +74,39 @@ async function main(){
  console.log('OK: SOAP original/retificação/cancelamento; versões imutáveis; migração repetível.');
  await q("INSERT INTO usuarios(nome,perfil,setor,senha_hash,status) VALUES('Teste','NIR','',$1,'Ativo')",[A.hashSenha('senha-teste')]);
  const login=await A.autenticar({},'Teste','senha-teste');assert.ok(login.token);assert.ok((await one("SELECT token FROM sessoes WHERE nome='Teste'")).token.startsWith('sha256$'));assert.equal((await A.validarSessao(login.token)).perfil,'NIR');
+ assert.ok(Array.isArray(login.permissoesMenu)&&login.permissoesMenu.length===10);assert.equal(login.permissoesMenu.find(p=>p.modulo_chave==='censo').visivel,true);
  await q("UPDATE usuarios SET perfil='SETOR',setor='UTIN 1' WHERE nome='Teste'");assert.equal(await A.validarSessao(login.token),null);
  const login2=await A.autenticar({},'Teste','senha-teste');assert.equal((await A.validarSessao(login2.token)).setor,'UTIN 1');await A.encerrarSessao({},login2.token);assert.equal(await A.validarSessao(login2.token),null);
  console.log('OK: sessão por hash, permissões atuais, revogação e logout.');
+ console.log('Configurações — personalização do menu por perfil');
+ const adminCtx={sessao:{nome:'Teste',perfil:'Administrador',setor:'',administrador:true}};
+ const naoAdminCtx={sessao:{nome:'Teste',perfil:'NIR',setor:'',administrador:false}};
+ assert.equal((await CFG.permissoesEfetivas('Setor')).bi,false);
+ assert.equal((await CFG.permissoesEfetivas('NIR')).bi,true);
+ assert.equal((await CFG.permissoesEfetivas('Operador')).censo,true);
+ assert.equal((await CFG.permissoesEfetivas('Administrador')).configuracoes,true);
+ assert.equal((await CFG.permissoesEfetivas('Setor')).configuracoes,false);
+ const matriz=await CFG.obterMatrizPermissoesMenu(adminCtx);
+ assert.ok(matriz.perfis.includes('Setor')&&matriz.perfis.length>=8&&matriz.modulos.length===10);
+ assert.equal(matriz.elegiveis['Setor'].bi,false);assert.equal(matriz.elegiveis['NIR'].bi,true);
+ await assert.rejects(CFG.obterMatrizPermissoesMenu(naoAdminCtx),/administradores/);
+ await assert.rejects(CFG.atualizarPermissaoMenu(naoAdminCtx,{perfil:'Setor',modulo_chave:'censo',visivel:false}),/administradores/);
+ await assert.rejects(CFG.atualizarPermissaoMenu(adminCtx,{perfil:'Setor',modulo_chave:'bi',visivel:true}),/não tem acesso/);
+ await assert.rejects(CFG.atualizarPermissaoMenu(adminCtx,{perfil:'Inexistente',modulo_chave:'censo',visivel:false}),/Perfil/);
+ await assert.rejects(CFG.atualizarPermissaoMenu(adminCtx,{perfil:'Setor',modulo_chave:'inexistente',visivel:false}),/Módulo/);
+ await assert.rejects(CFG.atualizarPermissaoMenu(adminCtx,{perfil:'Administrador',modulo_chave:'censo',visivel:false}),/fixo/);
+ await CFG.atualizarPermissaoMenu(adminCtx,{perfil:'Setor',modulo_chave:'censo',visivel:false});
+ assert.equal((await CFG.permissoesEfetivas('Setor')).censo,false);
+ assert.equal((await CFG.permissoesEfetivas('Operador')).censo,true);   // não afeta os demais perfis
+ assert.equal((await CFG.permissoesMenuDoPerfil('Setor')).find(x=>x.modulo_chave==='censo').visivel,false);
+ await CFG.atualizarPermissaoMenu(adminCtx,{perfil:'Setor',modulo_chave:'censo',visivel:true});
+ assert.equal((await CFG.permissoesEfetivas('Setor')).censo,true);
+ await CFG.atualizarPermissaoMenu(adminCtx,{perfil:'Visualizador',modulo_chave:'acr',visivel:false});
+ const migPerm=fs.readFileSync(path.join(__dirname,'../db/migrations/20261018_permissoes_menu.sql'),'utf8');
+ await db.exec(migPerm);await db.exec(migPerm);   // repetível e preserva escolhas
+ assert.equal((await CFG.permissoesEfetivas('Visualizador')).acr,false);
+ assert.equal((await one('SELECT count(*)::int n FROM permissoes_menu')).n,80);
+ console.log('OK: matriz por perfil, bloqueio de não administrador, upsert isolado, módulo inelegível e migração repetível.');
  await require('./http-regression-test')({A,q,ctx});
  await db.close();
 }
