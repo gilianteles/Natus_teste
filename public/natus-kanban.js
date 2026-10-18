@@ -37,9 +37,9 @@
     if (c.diasInternado) tags.push('<span class="kb-tag">' + c.diasInternado + ' dia(s)</span>');
     var i = COLUNAS.findIndex(function (x) { return x.id === c.coluna; });
     var nav = '<div class="kb-acoes">' +
-      (i > 0 ? '<button class="btn btn-sm btn-light" title="Mover para a coluna anterior" onclick="kbMover(\'' + c.idCard + '\',\'' + COLUNAS[i - 1].id + '\')"><i class="bi bi-arrow-left"></i></button>' : '') +
-      (i < COLUNAS.length - 1 ? '<button class="btn btn-sm btn-light" title="Avançar para a próxima coluna" onclick="kbMover(\'' + c.idCard + '\',\'' + COLUNAS[i + 1].id + '\')"><i class="bi bi-arrow-right"></i></button>' : '') +
-      '<button class="btn btn-sm btn-light ms-auto" title="Detalhes / observações" onclick="kbAbrirCard(\'' + c.idCard + '\')"><i class="bi bi-three-dots"></i></button></div>';
+      (i > 0 ? '<button class="btn btn-sm btn-light" title="Mover para a coluna anterior" onclick="kbMover(\'' + NatusEscape.js(c.idCard) + '\',\'' + COLUNAS[i - 1].id + '\')"><i class="bi bi-arrow-left"></i></button>' : '') +
+      (i < COLUNAS.length - 1 ? '<button class="btn btn-sm btn-light" title="Avançar para a próxima coluna" onclick="kbMover(\'' + NatusEscape.js(c.idCard) + '\',\'' + COLUNAS[i + 1].id + '\')"><i class="bi bi-arrow-right"></i></button>' : '') +
+      '<button class="btn btn-sm btn-light ms-auto" title="Detalhes / observações" onclick="kbAbrirCard(\'' + NatusEscape.js(c.idCard) + '\')"><i class="bi bi-three-dots"></i></button></div>';
     return '<div class="kb-card prio-' + esc(c.prioridade) + '" draggable="true" data-card="' + esc(c.idCard) + '" data-coluna="' + esc(c.coluna) + '">' +
       '<div class="kb-nome">' + esc(c.nome) + '</div>' +
       '<div class="kb-meta"><span><i class="bi bi-clock-history me-1"></i>' + esc(c.dataHoraEntrada || c.criadoEm || '—') + '</span>' +
@@ -140,14 +140,14 @@
           '<div class="col-6 col-md-3 d-none" id="kbIntTipoWrap"><label class="form-label small mb-1">Tipo</label><select class="form-select form-select-sm" id="kbIntTipo" onchange="kbCarregarLeitos()"><option value="RN">RN (recém-nascido)</option><option value="MAE">Mãe</option></select></div>' +
           '<div class="col-6 col-md-3"><label class="form-label small mb-1">Procedência</label><input class="form-control form-control-sm" id="kbIntProc" value="ACR"></div>' +
           '</div>' +
-          '<button class="btn btn-natus btn-sm fw-semibold mt-3" onclick="kbInternar(\'' + c.idCard + '\')"><i class="bi bi-box-arrow-in-down me-1"></i>Confirmar internação</button>' +
+          '<button class="btn btn-natus btn-sm fw-semibold mt-3" onclick="kbInternar(\'' + NatusEscape.js(c.idCard) + '\')"><i class="bi bi-box-arrow-in-down me-1"></i>Confirmar internação</button>' +
         '</div>'
       : '';
     el('kbDetalheBody').innerHTML =
       '<div class="mb-3"><div class="fw-bold fs-5">' + esc(c.nome) + '</div>' +
       '<div class="small text-muted">Nasc.: ' + esc(c.dataNascimento || '—') + ' · CPF: ' + esc(c.cpf || '—') + ' · SUS: ' + esc(c.cartaoSus || '—') + '</div>' +
       '<div class="small text-muted">' + (c.setor ? 'Leito: ' + esc(c.setor) + (c.numeroLeito ? ' · ' + esc(c.numeroLeito) : '') : 'Sem leito atribuído') + ' · Entrada: ' + esc(c.dataHoraEntrada || '—') + '</div>' +
-      (c.idInternacao ? '<button class="btn btn-sm btn-outline-primary mt-2 fw-semibold" onclick="kbAbrirProntuario(\'' + esc(c.idInternacao) + '\')"><i class="bi bi-journal-medical me-1"></i>Abrir prontuário (PEP)</button>' : '') + '</div>' +
+      (c.idInternacao ? '<button class="btn btn-sm btn-outline-primary mt-2 fw-semibold" onclick="kbAbrirProntuario(\'' + NatusEscape.js(c.idInternacao) + '\')"><i class="bi bi-journal-medical me-1"></i>Abrir prontuário (PEP)</button>' : '') + '</div>' +
       '<div class="row g-2">' +
       '<div class="col-md-6"><label class="form-label">Coluna</label><select class="form-select" id="kbCardColuna">' + opcoesColuna + '</select></div>' +
       '<div class="col-md-6"><label class="form-label">Prioridade</label><select class="form-select" id="kbCardPrioridade">' + opcoesPrio + '</select></div>' +
@@ -157,8 +157,8 @@
       '</div>' +
       blocoInternar +
       '<div class="d-flex justify-content-between mt-4">' +
-      '<button class="btn btn-outline-danger btn-sm" onclick="kbRemover(\'' + c.idCard + '\')"><i class="bi bi-trash me-1"></i>Retirar do quadro</button>' +
-      '<button class="btn btn-natus fw-semibold" onclick="kbSalvarCard(\'' + c.idCard + '\')"><i class="bi bi-check-lg me-1"></i>Salvar alterações</button>' +
+      '<button class="btn btn-outline-danger btn-sm" onclick="kbRemover(\'' + NatusEscape.js(c.idCard) + '\')"><i class="bi bi-trash me-1"></i>Retirar do quadro</button>' +
+      '<button class="btn btn-natus fw-semibold" onclick="kbSalvarCard(\'' + NatusEscape.js(c.idCard) + '\')"><i class="bi bi-check-lg me-1"></i>Salvar alterações</button>' +
       '</div>';
     bootstrap.Modal.getOrCreateInstance(el('modalCardKanban')).show();
     if (podeInternar) kbCarregarSetoresParaInternar();
@@ -183,19 +183,12 @@
     var ehAlcon = SETORES_ALCON.indexOf(String(setor).trim().toUpperCase()) !== -1;
     if (wrapTipo) wrapTipo.classList.toggle('d-none', !ehAlcon);
     if (!setor) { sel.innerHTML = '<option value="">Selecione o setor primeiro</option>'; return; }
-    var tipo = (ehAlcon && el('kbIntTipo')) ? el('kbIntTipo').value : '';
     sel.innerHTML = '<option value="">Carregando...</option>';
-    // ALCON: leitos LIVRES primeiro e, depois, os OCUPADOS que apenas completam o binômio (Mãe/RN).
-    google.script.run.withSuccessHandler(function (info) {
-      var livres = (info && info.livres) || [], comp = (info && info.complementares) || [];
-      var total = info ? info.totalLeitos : 0;
-      if (total === 0) { sel.innerHTML = '<option value="">Setor ainda sem leitos cadastrados</option>'; return; }
-      if (!livres.length && !comp.length) { sel.innerHTML = '<option value="">Nenhum leito compatível disponível</option>'; return; }
-      var opts = livres.map(function (l) { return '<option value="' + esc(l.ID_Leito) + '">' + esc(l.Numero_Leito) + ' — LIVRE</option>'; }).join('')
-        + comp.map(function (l) { return '<option value="' + esc(l.ID_Leito) + '">' + esc(l.Numero_Leito) + ' — completar binômio</option>'; }).join('');
-      sel.innerHTML = '<option value="">Selecione o leito...</option>' + opts;
+    google.script.run.withSuccessHandler(function (leitos) {
+      if (!leitos || !leitos.length) { sel.innerHTML = '<option value="">Nenhum leito disponível neste setor</option>'; return; }
+      sel.innerHTML = '<option value="">Selecione o leito...</option>' + leitos.map(function (l) { return '<option value="' + esc(l.ID_Leito) + '">' + esc(l.Numero_Leito) + (l.Status && l.Status !== 'Livre' ? ' — ' + esc(l.Status) : '') + '</option>'; }).join('');
     }).withFailureHandler(function (err) { sel.innerHTML = '<option value="">Erro ao consultar leitos</option>'; toast(err && err.message ? err.message : 'Falha ao consultar leitos.', 'erro'); })
-      .obterInfoLeitosSetorDestino(setor, tipo);
+      .getLeitosDisponiveisSetor(setor, ehAlcon ? el('kbIntTipo').value : '');
   }
   function kbInternar(idCard) {
     var setor = el('kbIntSetor').value, leitoId = el('kbIntLeito').value;
@@ -216,6 +209,7 @@
   }
   function kbAbrirProntuario(idInternacao) {
     if (!idInternacao) return;
+    var t = tokenAtual();
     window.open('/?view=prontuario&id=' + encodeURIComponent(idInternacao), '_blank');
   }
 

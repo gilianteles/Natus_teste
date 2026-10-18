@@ -110,7 +110,7 @@ function abrirUsuarios(){ cancelarEdicaoUsuario(); carregarUsuarios(); bootstrap
 
 function carregarNIR(){
   google.script.run.withSuccessHandler(renderizarSetores).withFailureHandler(err=>{
-    document.getElementById('gridSetores').innerHTML='<div class="col-12"><div class="alert alert-danger">Erro ao carregar os setores: '+(err&&err.message?err.message:err)+'</div></div>';
+    document.getElementById('gridSetores').innerHTML='<div class="col-12"><div class="alert alert-danger">Erro ao carregar os setores: '+NatusEscape.html(err&&err.message?err.message:err)+'</div></div>';
   }).obterDadosNIR();
 }
 function renderizarSetores(setores){
@@ -125,17 +125,17 @@ function renderizarSetores(setores){
     const dot=ocupado?'#dc3545':atencao?'#f59f45':'#19a974';
     grid.innerHTML+=`
       <div class="col-xl-3 col-lg-4 col-md-6">
-        <div class="setor-card" onclick="abrirSetor('${esc(String(nomeInterno).replace(/'/g,"\\'"))}')">
+        <div class="setor-card" onclick="abrirSetor('${NatusEscape.js(nomeInterno)}')">
           <div class="setor-top"></div><div class="setor-body">
             <div class="d-flex justify-content-between align-items-start mb-3">
               <div class="d-flex align-items-center gap-2"><div class="setor-icon"><i class="bi bi-hospital"></i></div>
-                <div><div class="fw-bold">${esc(nomeExibicao)}</div><div class="small text-muted">${esc(s.tipo||'Setor assistencial')}</div></div>
+                <div><div class="fw-bold">${NatusEscape.html(nomeExibicao)}</div><div class="small text-muted">${NatusEscape.html(s.tipo||'Setor assistencial')}</div></div>
               </div>
-              <span class="small fw-bold"><span class="status-dot" style="background:${dot}"></span>${ocupado?'Lotado':atencao?'Atenção':'Disponível'}</span>
+              <span class="small fw-bold"><span class="status-dot" style="background:${NatusEscape.html(dot)}"></span>${NatusEscape.html(ocupado?'Lotado':atencao?'Atenção':'Disponível')}</span>
             </div>
-            <div class="d-flex justify-content-between align-items-end mb-2"><div class="occupancy">${s.ocupados}<small> / ${s.total}</small></div><div class="rate">${taxa}%</div></div>
-            <div class="barra-ocup mb-3"><div class="barra-ocup-fill" style="width:${Math.min(taxa,100)}%;background:${fill}"></div></div>
-            <div class="d-flex justify-content-between small text-muted"><span><i class="bi bi-check-circle me-1"></i>${s.livres} livre(s)</span><span>Ver setor <i class="bi bi-arrow-right"></i></span></div>
+            <div class="d-flex justify-content-between align-items-end mb-2"><div class="occupancy">${NatusEscape.html(s.ocupados)}<small> / ${NatusEscape.html(s.total)}</small></div><div class="rate">${NatusEscape.html(taxa)}%</div></div>
+            <div class="barra-ocup mb-3"><div class="barra-ocup-fill" style="width:${NatusEscape.html(Math.min(taxa,100))}%;background:${NatusEscape.html(fill)}"></div></div>
+            <div class="d-flex justify-content-between small text-muted"><span><i class="bi bi-check-circle me-1"></i>${NatusEscape.html(s.livres)} livre(s)</span><span>Ver setor <i class="bi bi-arrow-right"></i></span></div>
           </div>
         </div>
       </div>`;
@@ -150,10 +150,10 @@ function carregarUsuarios(){
   google.script.run.withSuccessHandler(lista=>{ SETORES=(lista||[]).slice(); montarSelectPerfil(); }).withFailureHandler(err=>alert(err&&err.message?err.message:err)).obterSetoresParaUsuario(token);
   google.script.run.withSuccessHandler(opcoes=>{
     const cargo=document.getElementById('listaCargos');
-    if(cargo&&opcoes&&opcoes.cargos) cargo.innerHTML=opcoes.cargos.map(c=>`<option value="${esc(c)}"></option>`).join('');
+    if(cargo&&opcoes&&opcoes.cargos) cargo.innerHTML=opcoes.cargos.map(c=>`<option value="${NatusEscape.html(c)}"></option>`).join('');
     if(opcoes&&opcoes.perfis){
       const sel=document.getElementById('usuarioPerfil');
-      sel.innerHTML=opcoes.perfis.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('');
+      sel.innerHTML=opcoes.perfis.map(p=>`<option value="${NatusEscape.html(p)}">${NatusEscape.html(p)}</option>`).join('');
       sel.value='Operador';
       montarSelectSetor();
     }
@@ -166,7 +166,7 @@ function mascaraCpf(v){const d=soDigitos(v).substring(0,11);if(d.length<=3)retur
 function montarSelectPerfil(){
   const sel=document.getElementById('usuarioPerfil');
   if(!sel.options.length){
-    sel.innerHTML=['Administrador','Operador','Visualizador','NIR','SAME','NIR/SAME','Gestão','Setor'].map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('');
+    sel.innerHTML=['Administrador','Operador','Visualizador','NIR','SAME','NIR/SAME','Gestão','Setor'].map(p=>`<option value="${NatusEscape.html(p)}">${NatusEscape.html(p)}</option>`).join('');
     sel.value='Operador';
   }
   montarSelectSetor();
@@ -179,7 +179,7 @@ function montarSelectSetor(valor){
   ['ACR','NIR','SAME','NIR/SAME','Gestão'].forEach(s=>opts.push({v:s,t:rotuloSetor(s)}));
   SETORES.forEach(s=>{ if(!opts.some(o=>String(o.v).toUpperCase()===String(s).toUpperCase())) opts.push({v:s,t:rotuloSetor(s)}); });
   const sel=document.getElementById('usuarioSetor');
-  sel.innerHTML=opts.map(o=>`<option value="${esc(o.v)}">${esc(o.t)}</option>`).join('');
+  sel.innerHTML=opts.map(o=>`<option value="${NatusEscape.html(o.v)}">${NatusEscape.html(o.t)}</option>`).join('');
   sel.value = valor!==undefined ? valor : (ehAdmin?'':(SETORES[0]||'ACR'));
 }
 function renderizarUsuarios(lista){
@@ -190,15 +190,15 @@ function renderizarUsuarios(lista){
     const ativo=String(u.status||'Ativo').toLowerCase()==='ativo';
     const badgePerfil=u.administrador?'bg-danger':(u.perfil==='Setor'?'bg-secondary':'bg-primary');
     return `<tr>
-      <td><div class="fw-semibold">${esc(u.nomeCompleto||u.nome)}</div><div class="small text-muted">login: ${esc(u.nome)}${u.cpf?' · CPF '+esc(mascaraCpf(u.cpf)):''}</div></td>
-      <td>${esc(u.cargo)||'—'}</td>
-      <td><div class="small">${esc(u.email)||'—'}</div><div class="small text-muted">${esc(u.telefone)||''}</div></td>
-      <td><span class="badge ${badgePerfil}">${esc(u.perfil)}</span>${u.administrador?' <i class="bi bi-shield-lock-fill text-danger" title="Administrador"></i>':''}</td>
-      <td>${esc(rotuloSetor(u.setor))||'—'}</td>
-      <td><span class="badge ${ativo?'bg-success':'bg-secondary'}">${ativo?'Ativo':'Inativo'}</span></td>
+      <td><div class="fw-semibold">${NatusEscape.html(u.nomeCompleto||u.nome)}</div><div class="small text-muted">login: ${NatusEscape.html(u.nome)}${NatusEscape.html(u.cpf?' · CPF '+mascaraCpf(u.cpf):'')}</div></td>
+      <td>${NatusEscape.html(u.cargo||'—')}</td>
+      <td><div class="small">${NatusEscape.html(u.email||'—')}</div><div class="small text-muted">${NatusEscape.html(u.telefone||'')}</div></td>
+      <td><span class="badge ${NatusEscape.html(badgePerfil)}">${NatusEscape.html(u.perfil)}</span>${u.administrador?' <i class="bi bi-shield-lock-fill text-danger" title="Administrador"></i>':''}</td>
+      <td>${NatusEscape.html(rotuloSetor(u.setor)||'—')}</td>
+      <td><span class="badge ${NatusEscape.html(ativo?'bg-success':'bg-secondary')}">${NatusEscape.html(ativo?'Ativo':'Inativo')}</span></td>
       <td class="text-end">
-        <button class="btn btn-sm btn-outline-primary me-1" title="Editar" onclick="editarUsuario('${esc(String(u.nome).replace(/'/g,"\\'"))}')"><i class="bi bi-pencil"></i></button>
-        <button class="btn btn-sm btn-outline-danger" title="Excluir" onclick="excluirUsuario('${esc(String(u.nome).replace(/'/g,"\\'"))}')"><i class="bi bi-trash"></i></button>
+        <button class="btn btn-sm btn-outline-primary me-1" title="Editar" onclick="editarUsuario('${NatusEscape.js(u.nome)}')"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger" title="Excluir" onclick="excluirUsuario('${NatusEscape.js(u.nome)}')"><i class="bi bi-trash"></i></button>
       </td></tr>`;
   }).join('');
 }
@@ -254,7 +254,7 @@ document.getElementById('formUsuario').addEventListener('submit',e=>{
 });
 function excluirUsuario(nome){if(!confirm(`Excluir o colaborador "${nome}"? O acesso será revogado imediatamente.`))return;google.script.run.withSuccessHandler(carregarUsuarios).withFailureHandler(err=>alert(err&&err.message?err.message:err)).excluirUsuario(token,nome);}
 function abrirKanban(){window.top.location.href=`${appUrl}?view=kanban`;}
-function sair(){google.script.run.withSuccessHandler(()=>window.top.location.href=appUrl).encerrarSessao();}
+function sair(){google.script.run.withSuccessHandler(()=>window.top.location.href=appUrl).encerrarSessao(token);}
 document.getElementById('formNovoSetor').addEventListener('submit',function(e){
   e.preventDefault();const payload={nome:document.getElementById('setorNome').value,tipo:document.getElementById('setorTipo').value,leitosAtivos:document.getElementById('setorLeitos').value};
   google.script.run.withSuccessHandler(()=>{bootstrap.Modal.getInstance(document.getElementById('modalNovoSetor')).hide();document.getElementById('formNovoSetor').reset();carregarNIR();}).withFailureHandler(err=>alert(err.message)).criarSetor(payload);

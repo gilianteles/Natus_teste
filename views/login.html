@@ -475,10 +475,11 @@
       google.script.run
         .withSuccessHandler(function (res) {
           setLoading(false);
-          if (!res || !res.nome) {
+          if (!res || res.success !== true) {
             showMessage('Usuário ou senha inválidos.');
             return;
           }
+          try { sessionStorage.clear(); } catch (_) {}
           showMessage('Acesso autorizado. Abrindo o NATUS...', 'success');
           button.disabled = true;
           // Segurança: a sessão é criada em cookie HttpOnly no servidor (Set-Cookie). O token NÃO

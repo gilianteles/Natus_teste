@@ -399,19 +399,14 @@
               <label class="form-label">Destino</label>
               <select class="form-select" id="movDestino" required></select>
             </div>
+            <div class="col-md-12 d-none" id="movTipoPacienteWrap">
+              <label class="form-label">Integrante do ALCON</label>
+              <select class="form-select" id="movTipoPaciente" onchange="atualizarLeitosDestinoTransferencia()"><option value="">Selecione Mãe ou RN...</option><option value="MAE">Mãe</option><option value="RN">RN</option></select>
+            </div>
             <div class="col-md-12 d-none" id="movLeitoDestinoWrap">
               <label class="form-label">Leito disponível no setor de destino</label>
               <select class="form-select" id="movLeitoDestino"></select>
               <div class="form-text">A transferência interna será registrada automaticamente no setor e leito selecionados.</div>
-            </div>
-            <div class="col-md-12 d-none" id="movTipoAlconWrap">
-              <label class="form-label">Admitir no Alojamento Conjunto (ALCON) como</label>
-              <select class="form-select" id="movTipoPacienteDestino">
-                <option value="">Selecione...</option>
-                <option value="MAE">Mãe (puérpera)</option>
-                <option value="RN">Recém-nascido (RN)</option>
-              </select>
-              <div class="form-text">Obrigatório: define se o paciente transferido ocupa a vaga da Mãe ou a do RN no binômio.</div>
             </div>
             <div class="col-md-12 d-none alert alert-warning small mb-0" id="movAvisoSetorSemLeito">
               <i class="bi bi-exclamation-triangle-fill me-1"></i>
@@ -692,6 +687,7 @@
               <label class="form-label">IG (Idade Gestacional)</label>
               <input type="text" class="form-control" id="editIG" placeholder="Ex: 38 semanas">
             </div>
+            <div class="col-md-4 d-none" id="editTipoPacienteWrap"><label class="form-label">Integrante do binômio</label><select class="form-select" id="editTipoPaciente"><option value="MAE">Mãe</option><option value="RN">RN</option></select></div>
             <div class="col-md-8" id="editProcedimentoWrap">
               <label class="form-label d-block" id="editProcedimentoLabel">Tipo de Parto</label>
               <div class="btn-group w-100">
@@ -726,9 +722,6 @@
     let globalInternadosAtivos = [];
     let globalPacientesSemLeito = [];
     let listaSetoresGlobal = [];
-    // Proteção contra XSS: todo dado vindo do servidor (nomes, observações, procedência, etc.)
-    // é escapado antes de entrar em innerHTML/atributos.
-    function esc(v) { return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]; }); }
 
     const OPCOES_ORIGEM_BASE = ["DOMICILIAR", "ADMISSÃO", "CCO", "PPP", "UCINCA", "UCINCO", "UTIN 1", "UTIN 2", "UTIN 3", "ALCON 1", "ALCON 2", "SRPA", "UEN", "OUTRO HOSPITAL", "VAGA ZERO", "VIA PÚBLICA"];
     const ROTULO_SETOR = { "UEN": "Leito Extra CCO Neonatal" };
@@ -805,7 +798,7 @@
       if (!btn) return;
       if (!btn.dataset.textoOriginal) btn.dataset.textoOriginal = btn.innerHTML;
       btn.disabled = true;
-      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>${texto}`;
+      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span>${NatusEscape.html(texto)}`;
     }
 
     function liberarBotao(btn, texto, err) {
@@ -962,27 +955,26 @@
     document.getElementById('intBuscaTipo').addEventListener('change', function () { document.getElementById('intBuscaDoc').focus(); });
     document.getElementById('intBuscaDoc').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); buscarDocumentoInternacao(); } });
 
-    // Lista de leitos para a Nova Internação. Nos ALCON mostra primeiro os leitos LIVRES e, em
-    // seguida, os leitos OCUPADOS que apenas completam o binômio (Mãe ou RN já no leito) — assim o
-    // operador enxerga as vagas e, depois, os leitos onde o binômio pode ser completado.
-    function opcoesLeitosInternacao() {
-      const tipo = document.getElementById('intTipoPaciente').value;
-      const ehAlcon = ['ALCON 1','ALCON 2'].includes(String(setorAtualParam).trim().toUpperCase());
-      const compativel = l => l.Status === 'Livre' ||
-        (ehAlcon && l.Status === 'Ocupado' && ((tipo === 'RN' && !l.idPacienteRN) || (tipo === 'MAE' && !l.idPacienteMae)));
-      return globalDataLeitos.filter(compativel)
-        .sort((a, b) => (a.Status === 'Livre' ? 0 : 1) - (b.Status === 'Livre' ? 0 : 1))
-        .map(l => `<option value="${esc(l.ID_Leito)}">${esc(l.Numero_Leito)}${l.Status === 'Ocupado' ? ' — completar binômio' : ''}</option>`).join('');
-    }
-
     document.getElementById('intTipoPaciente').addEventListener('change', () => {
       alternarCamposPorSetor();
-      document.getElementById('intLeito').innerHTML = opcoesLeitosInternacao();
+      const ehAlcon = ['ALCON 1','ALCON 2'].includes(String(setorAtualParam).trim().toUpperCase());
+      if (!ehAlcon) return;
+      const tipo = document.getElementById('intTipoPaciente').value;
+      const select = document.getElementById('intLeito');
+      select.innerHTML = '';
+      globalDataLeitos.filter(l => l.Status === 'Livre' || (l.Status === 'Ocupado' && ((tipo === 'RN' && !l.idPacienteRN && !!l.idPacienteMae) || (tipo === 'MAE' && !l.idPacienteMae && !!l.idPacienteRN)))).forEach(l => {
+        select.innerHTML += `<option value="${NatusEscape.html(l.ID_Leito)}">${NatusEscape.html(l.Numero_Leito)}${NatusEscape.html(l.Status === 'Ocupado' ? ' — completar binômio' : '')}</option>`;
+      });
     });
 
     function abrirNovaInternacaoGenerica() {
       resetFormInternacao();
-      document.getElementById('intLeito').innerHTML = opcoesLeitosInternacao();
+      const ehAlcon = ['ALCON 1','ALCON 2'].includes(String(setorAtualParam).trim().toUpperCase());
+      const select = document.getElementById('intLeito');
+      select.innerHTML = '';
+      globalDataLeitos.filter(l => l.Status === 'Livre' || (ehAlcon && l.Status === 'Ocupado' && ((document.getElementById('intTipoPaciente').value === 'RN' && !l.idPacienteRN && !!l.idPacienteMae) || (document.getElementById('intTipoPaciente').value === 'MAE' && !l.idPacienteMae && !!l.idPacienteRN)))).forEach(l => {
+        select.innerHTML += `<option value="${NatusEscape.html(l.ID_Leito)}">${NatusEscape.html(l.Numero_Leito)}${NatusEscape.html(l.Status === 'Ocupado' ? ' — completar binômio' : '')}</option>`;
+      });
       alternarCamposPorSetor();
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalInternacao')).show();
     }
@@ -1032,9 +1024,7 @@
 
     function sair() {
       limparCachePaineis();
-      // A sessão é encerrada pelo cookie HttpOnly no servidor.
-      google.script.run.encerrarSessao();
-      window.top.location.href = `${appUrl}?view=login`;
+      google.script.run.withSuccessHandler(() => { window.top.location.href = `${appUrl}?view=login`; }).withFailureHandler(err => alert(err.message)).encerrarSessao();
     }
 
     // Snapshot por sessão e setor, usado apenas para apresentação enquanto a
@@ -1044,7 +1034,7 @@
     let assinaturaPainel = '';
     let painelPendente = null;
     function chaveCachePainel(setor) {
-      return NATUS_CACHE_PREFIXO + String(token || '') + '_' + String(setor || '').toUpperCase();
+      return NATUS_CACHE_PREFIXO + "<?!= cacheScope ?>" + '_' + String(setor || '').toUpperCase();
     }
     function lerCachePainel(setor) {
       try {
@@ -1151,7 +1141,7 @@
       selectSetor.innerHTML = '';
       listaSetores.forEach(s => {
         const sel = (s.toUpperCase() === setorAtual.toUpperCase()) ? 'selected' : '';
-        selectSetor.innerHTML += `<option value="${esc(s)}" ${sel}>${esc(rotuloSetor(s))}</option>`;
+        selectSetor.innerHTML += `<option value="${NatusEscape.html(s)}" ${NatusEscape.html(sel)}>${NatusEscape.html(rotuloSetor(s))}</option>`;
       });
       // NIR e Gestão têm as mesmas autorizações (troca livre de setor); SAME/NIR-SAME são
       // administrativos mas ficam restritos ao próprio setor cadastrado aqui no Painel.
@@ -1178,10 +1168,10 @@
         listaSemLeitoEl.innerHTML = globalPacientesSemLeito.map(p => `
           <div class="list-group-item d-flex justify-content-between align-items-center">
             <div>
-              <strong>${esc(p.nome)}</strong>
-              <div class="small text-muted">Entrada: ${esc(p.dataInternacao || '-')} · Origem: ${esc(p.procedencia || '-')}</div>
+              <strong>${NatusEscape.html(p.nome)}</strong>
+              <div class="small text-muted">Entrada: ${NatusEscape.html(p.dataInternacao || '-')} · Origem: ${NatusEscape.html(p.procedencia || '-')}</div>
             </div>
-            <button type="button" class="btn btn-sm btn-primary fw-semibold" onclick="abrirAtribuirLeito('${esc(p.idInternacao)}')">
+            <button type="button" class="btn btn-sm btn-primary fw-semibold" onclick="abrirAtribuirLeito('${NatusEscape.js(p.idInternacao)}', '${NatusEscape.js(p.nome)}')">
               <i class="bi bi-house-add-fill me-1"></i> Atribuir Leito
             </button>
           </div>
@@ -1214,15 +1204,15 @@
       selectEditProcedencia.innerHTML = '<option value="">Selecione...</option>';
 
       OPCOES_ORIGEM_BASE.filter(o => o.toUpperCase() !== setorAtual.toUpperCase()).forEach(o => {
-        selectProcedencia.innerHTML += `<option value="${esc(o)}">${esc(rotuloSetor(o))}</option>`;
-        selectEditProcedencia.innerHTML += `<option value="${esc(o)}">${esc(rotuloSetor(o))}</option>`;
+        selectProcedencia.innerHTML += `<option value="${NatusEscape.html(o)}">${NatusEscape.html(rotuloSetor(o))}</option>`;
+        selectEditProcedencia.innerHTML += `<option value="${NatusEscape.html(o)}">${NatusEscape.html(rotuloSetor(o))}</option>`;
       });
 
       const selectProcOutro = document.getElementById('intProcedenciaOutro');
       const selectEditProcOutro = document.getElementById('editProcedenciaOutro');
-      if (selectEditProcOutro) selectEditProcOutro.innerHTML = '<option value="">Selecione...</option>' + OPCOES_PROCEDENCIA_EXTERNA.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('');
+      if (selectEditProcOutro) selectEditProcOutro.innerHTML = '<option value="">Selecione...</option>' + OPCOES_PROCEDENCIA_EXTERNA.map(o => `<option value="${NatusEscape.html(o)}">${NatusEscape.html(o)}</option>`).join('');
       selectProcOutro.innerHTML = '<option value="">Selecione...</option>' +
-        OPCOES_PROCEDENCIA_EXTERNA.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('');
+        OPCOES_PROCEDENCIA_EXTERNA.map(o => `<option value="${NatusEscape.html(o)}">${NatusEscape.html(o)}</option>`).join('');
 
       atualizarOpcoesDestino();
 
@@ -1238,12 +1228,12 @@
         selectMovPac.innerHTML = `<option value="">Nenhum paciente internado</option>`;
       } else {
         globalInternadosAtivos.forEach(pac => {
-          selectMovPac.innerHTML += `<option value="${esc(pac.idInternacao)}">${esc(pac.nome)} (${esc(pac.numeroLeito)})</option>`;
+          selectMovPac.innerHTML += `<option value="${NatusEscape.html(pac.idInternacao)}">${NatusEscape.html(pac.nome)} (${NatusEscape.html(pac.numeroLeito)})</option>`;
         });
       }
       // Edição de dados clínicos: no ALCON, Mãe e RN possuem internações independentes no mesmo leito.
       globalInternadosAtivos.forEach(pac => {
-        selectEditPac.innerHTML += `<option value="${esc(pac.idPaciente)}">${esc(pac.nome)} (${esc(pac.numeroLeito)}${pac.tipoPaciente ? ' · '+esc(pac.tipoPaciente) : ''})</option>`;
+        selectEditPac.innerHTML += `<option value="${NatusEscape.html(pac.idPaciente)}">${NatusEscape.html(pac.nome)} (${NatusEscape.html(pac.numeroLeito)}${NatusEscape.html(pac.tipoPaciente ? ' · '+pac.tipoPaciente : '')})</option>`;
       });
 
       function atualizarLeitoMovimentacao() {
@@ -1256,8 +1246,8 @@
       leitos.forEach(l => {
         const ehAlconSetor = ['ALCON 1','ALCON 2'].includes(String(setorAtual).trim().toUpperCase());
         const tipo = (document.getElementById('intTipoPaciente') || {}).value || 'RN';
-        const podeCompletar = ehAlconSetor && l.Status === 'Ocupado' && ((tipo === 'RN' && !l.idPacienteRN) || (tipo === 'MAE' && !l.idPacienteMae));
-        if (l.Status === 'Livre' || podeCompletar) selectLeito.innerHTML += `<option value="${esc(l.ID_Leito)}">${esc(l.Numero_Leito)}${podeCompletar ? ' — completar binômio' : ''}</option>`;
+        const podeCompletar = ehAlconSetor && l.Status === 'Ocupado' && ((tipo === 'RN' && !l.idPacienteRN && !!l.idPacienteMae) || (tipo === 'MAE' && !l.idPacienteMae && !!l.idPacienteRN));
+        if (l.Status === 'Livre' || podeCompletar) selectLeito.innerHTML += `<option value="${NatusEscape.html(l.ID_Leito)}">${NatusEscape.html(l.Numero_Leito)}${NatusEscape.html(podeCompletar ? ' — completar binômio' : '')}</option>`;
       });
 
       const listaGerencial = document.getElementById('listaGerencialLeitos');
@@ -1265,8 +1255,8 @@
       leitos.forEach(l => {
         listaGerencial.innerHTML += `
           <li class="list-group-item d-flex justify-content-between align-items-center">
-            <span><strong>${esc(l.Numero_Leito)}</strong> (${esc(l.Status)})</span>
-            ${l.Status !== 'Ocupado' ? `<button class="btn btn-sm btn-outline-danger" onclick="excluirLeito('${esc(l.ID_Leito)}')"><i class="bi bi-trash"></i></button>` : '<span class="badge bg-secondary">Ocupado</span>'}
+            <span><strong>${NatusEscape.html(l.Numero_Leito)}</strong> (${NatusEscape.html(l.Status)})</span>
+            ${l.Status !== 'Ocupado' ? `<button class="btn btn-sm btn-outline-danger" onclick="excluirLeito('${NatusEscape.js(l.ID_Leito)}')"><i class="bi bi-trash"></i></button>` : '<span class="badge bg-secondary">Ocupado</span>'}
           </li>
         `;
       });
@@ -1315,7 +1305,7 @@
       if (tipo === 'Alta') {
         selectDestino.innerHTML = `<option value="DOMICILIAR (CAPITAL)">Domiciliar (Capital)</option><option value="OUTRO MUNICÍPIO">Outro Município</option>`;
         if (selectMunicipio) {
-          selectMunicipio.innerHTML = '<option value="">Selecione o Município...</option>' + OPCOES_MUNICIPIOS.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('');
+          selectMunicipio.innerHTML = '<option value="">Selecione o Município...</option>' + OPCOES_MUNICIPIOS.map(o => `<option value="${NatusEscape.html(o)}">${NatusEscape.html(o)}</option>`).join('');
         }
         selectDestino.onchange = atualizarMunicipioAlta;
       } else if (tipo === 'Obito' || tipo === 'Evasao') {
@@ -1324,38 +1314,33 @@
       } else {
         OPCOES_DESTINO_BASE.filter(d => d.toUpperCase() !== setorAtualParam.toUpperCase()).forEach(d => {
           const rotulo = String(d).trim().toUpperCase() === 'UEN' ? 'Leito Extra CCO Neonatal' : d;
-          selectDestino.innerHTML += `<option value="${esc(d)}">${esc(rotulo)}</option>`;
+          selectDestino.innerHTML += `<option value="${NatusEscape.html(d)}">${NatusEscape.html(rotulo)}</option>`;
         });
         selectDestino.onchange = atualizarLeitosDestinoTransferencia;
         atualizarLeitosDestinoTransferencia();
       }
     }
 
-    // Define a vaga (Mãe/RN) no ALCON. A escolha é clínica: só inferimos quando a origem é
-    // inequívoca; caso contrário devolvemos '' e o operador precisa escolher explicitamente
-    // (era o bug: Mãe vinda do PPP era gravada silenciosamente como RN).
-    function tipoAlconDestino(setorOrigemNorm, ativoMov) {
-      const conhecido = ativoMov && ativoMov.tipoPaciente ? String(ativoMov.tipoPaciente).trim().toUpperCase().replace('MÃE', 'MAE') : '';
-      if (conhecido === 'MAE' || conhecido === 'RN') return conhecido;
-      if (setorOrigemNorm === 'UTI MATERNA' || setorOrigemNorm === 'PPP') return 'MAE';
-      if (setorOrigemNorm.indexOf('UTIN') === 0 || ['UCINCO', 'UCINCA', 'UEN', 'CCO'].includes(setorOrigemNorm)) return 'RN';
-      return '';
-    }
-
+    let consultaLeitosMov = 0;
+    document.getElementById('movPaciente').addEventListener('change', () => {
+      document.getElementById('movTipoPaciente').value = '';
+      atualizarLeitosDestinoTransferencia();
+    });
     function atualizarLeitosDestinoTransferencia() {
+      const consulta = ++consultaLeitosMov;
+      const tipoSelect = document.getElementById('movTipoPaciente');
+      tipoSelect.required = false;
+      document.getElementById('movTipoPacienteWrap').classList.add('d-none');
       const tipo = document.getElementById('movTipo').value;
       const destino = document.getElementById('movDestino').value;
       const wrap = document.getElementById('movLeitoDestinoWrap');
       const select = document.getElementById('movLeitoDestino');
-      const wrapTipo = document.getElementById('movTipoAlconWrap');
-      const selTipo = document.getElementById('movTipoPacienteDestino');
       const avisoSemLeito = document.getElementById('movAvisoSetorSemLeito');
       if (!wrap || !select) return;
       if (avisoSemLeito) avisoSemLeito.classList.add('d-none');
 
       if (tipo === 'Transferencia' && String(destino).trim().toUpperCase() === 'UEN') {
         wrap.classList.add('d-none');
-        if (wrapTipo) wrapTipo.classList.add('d-none');
         select.required = false;
         select.innerHTML = '';
         return;
@@ -1363,38 +1348,24 @@
 
       const ehSetorInterno = OPCOES_SETORES_INTERNOS.some(s => String(s).toUpperCase() === String(destino).toUpperCase());
       if (tipo !== 'Transferencia' || !ehSetorInterno) {
-        wrap.classList.add('d-none'); select.required = false; select.innerHTML = '';
-        if (wrapTipo) wrapTipo.classList.add('d-none');
-        return;
+        wrap.classList.add('d-none'); select.required = false; select.innerHTML = ''; return;
       }
-
-      const destinoEhAlcon = ['ALCON 1', 'ALCON 2'].includes(String(destino).trim().toUpperCase());
-      const ativoMov = globalInternadosAtivos.find(x => String(x.idInternacao) === String(document.getElementById('movPaciente').value));
-      const setorOrigemNorm = String(setorAtualParam).trim().toUpperCase();
-      let tipoPacienteTransferencia = tipoAlconDestino(setorOrigemNorm, ativoMov);
-
-      // ALCON + vaga indefinida: exige a escolha explícita Mãe/RN antes de listar os leitos.
-      if (destinoEhAlcon && !tipoPacienteTransferencia) {
-        if (wrapTipo) { wrapTipo.classList.remove('d-none'); }
-        if (selTipo) {
-          selTipo.required = true;
-          tipoPacienteTransferencia = String(selTipo.value || '').trim().toUpperCase().replace('MÃE', 'MAE');
-          if (!['MAE', 'RN'].includes(tipoPacienteTransferencia)) {
-            wrap.classList.add('d-none');
-            select.required = false;
-            select.innerHTML = '';
-            return;
-          }
-        }
-      } else if (wrapTipo) {
-        wrapTipo.classList.add('d-none');
-        if (selTipo) selTipo.required = false;
-      }
-
       select.innerHTML = '<option value="">Consultando leitos disponíveis...</option>';
       select.required = true; wrap.classList.remove('d-none');
 
+      const ativoMov = globalInternadosAtivos.find(x => String(x.idInternacao) === String(document.getElementById('movPaciente').value));
+      const setorOrigemNorm = String(setorAtualParam).trim().toUpperCase();
+      const tipoPacienteTransferencia = ativoMov && ativoMov.tipoPaciente
+        ? String(ativoMov.tipoPaciente).trim().toUpperCase().replace('MÃE','MAE')
+        : (setorOrigemNorm === 'UTI MATERNA' ? 'MAE' : (['UTIN 1','UTIN 2','UTIN 3','UCINCA','UCINCO','UEN'].includes(setorOrigemNorm) ? 'RN' : tipoSelect.value));
+      if (['ALCON 1','ALCON 2'].includes(destino.toUpperCase()) && !(ativoMov && ativoMov.tipoPaciente) && !['UTI MATERNA','UTIN 1','UTIN 2','UTIN 3','UCINCA','UCINCO','UEN'].includes(setorOrigemNorm)) {
+        document.getElementById('movTipoPacienteWrap').classList.remove('d-none');
+        tipoSelect.required = true;
+        if (!tipoSelect.value) { select.innerHTML = '<option value="">Selecione Mãe ou RN primeiro</option>'; return; }
+      }
+
       google.script.run.withSuccessHandler(info => {
+        if (consulta !== consultaLeitosMov) return;
         const totalLeitos = info ? info.totalLeitos : 0;
         const livres = (info && info.livres) || [];
         const complementares = (info && info.complementares) || [];
@@ -1412,18 +1383,14 @@
           select.required = true;
           return;
         }
-        // Leitos LIVRES primeiro; depois os OCUPADOS que apenas completam o binômio (Mãe/RN).
-        const optsLivres = livres.map(l => `<option value="${esc(l.ID_Leito)}">${esc(l.Numero_Leito)} — LIVRE</option>`).join('');
-        const optsComp = complementares.map(l => `<option value="${esc(l.ID_Leito)}">${esc(l.Numero_Leito)} — OCUPADO (Alojamento Conjunto) · adicionar ${tipoPacienteTransferencia === 'MAE' ? 'Mãe' : 'RN'}</option>`).join('');
+        const optsLivres = livres.map(l => `<option value="${NatusEscape.html(l.ID_Leito)}">${NatusEscape.html(l.Numero_Leito)} — LIVRE</option>`).join('');
+        const optsComp = complementares.map(l => `<option value="${NatusEscape.html(l.ID_Leito)}">${NatusEscape.html(l.Numero_Leito)} — OCUPADO (Alojamento Conjunto) · adicionar ${NatusEscape.html(tipoPacienteTransferencia === 'MAE' ? 'Mãe' : 'RN')}</option>`).join('');
         select.innerHTML = '<option value="">Selecione o leito...</option>' + optsLivres + optsComp;
       }).withFailureHandler(err => {
         select.innerHTML = '<option value="">Erro ao consultar leitos</option>';
         alert(err && err.message ? err.message : 'Não foi possível consultar os leitos do setor de destino.');
-      }).obterInfoLeitosSetorDestino(destino, tipoPacienteTransferencia);
+      }).obterInfoLeitosSetorDestino(destino, tipoPacienteTransferencia, document.getElementById('movPaciente').value);
     }
-
-    const selTipoAlcon = document.getElementById('movTipoPacienteDestino');
-    if (selTipoAlcon) selTipoAlcon.addEventListener('change', atualizarLeitosDestinoTransferencia);
 
     function atualizarMunicipioAlta() {
       const destino = document.getElementById('movDestino').value;
@@ -1464,7 +1431,7 @@
 
       resetFormInternacao();
       const modalEl = document.getElementById('modalInternacao');
-      document.getElementById('intLeito').innerHTML = `<option value="${esc(leito.ID_Leito)}">${esc(leito.Numero_Leito)}${ocupado ? ' — Alojamento Conjunto' : ''}</option>`;
+      document.getElementById('intLeito').innerHTML = `<option value="${NatusEscape.html(leito.ID_Leito)}">${NatusEscape.html(leito.Numero_Leito)}${NatusEscape.html(ocupado ? ' — Alojamento Conjunto' : '')}</option>`;
       document.getElementById('intLeito').value = leito.ID_Leito;
       document.getElementById('intData').value = dataLocalISO();
       document.getElementById('intHora').value = new Date().toTimeString().split(' ')[0].substring(0, 5);
@@ -1508,6 +1475,7 @@
       const paciente = globalInternadosAtivos.find(p => String(p.idInternacao) === String(idInternacao));
       if (!paciente) return;
       resetBotaoRegistrarSaida();
+      document.getElementById('movTipoPaciente').value = '';
       document.getElementById('movPaciente').value = idInternacao;
       document.getElementById('movLeito').value = paciente.numeroLeito || '';
       document.getElementById('movData').value = dataLocalISO();
@@ -1525,14 +1493,15 @@
     }
 
     function abrirTrocaLeito(idInternacao) {
-      const leitoAtual = globalDataLeitos.find(l => String(l.idInternacao) === String(idInternacao));
+      const integrante = globalInternadosAtivos.find(p => String(p.idInternacao) === String(idInternacao));
+      const leitoAtual = globalDataLeitos.find(l => String(l.idInternacao) === String(idInternacao) || (integrante && [l.idPacienteMae,l.idPacienteRN].includes(integrante.idPaciente)));
       if (!leitoAtual) {
         alert('Não foi possível localizar o leito atual do paciente. Atualize a tela e tente novamente.');
         return;
       }
 
       const opcoes = globalDataLeitos.filter(l =>
-        String(l.Status || '').trim().toUpperCase() === 'LIVRE' &&
+        (String(l.Status || '').trim().toUpperCase() === 'LIVRE' || (['ALCON 1','ALCON 2'].includes(setorAtualParam) && l.Status === 'Ocupado' && integrante && (integrante.tipoPaciente === 'MAE' ? !l.idPacienteMae && !!l.idPacienteRN : integrante.tipoPaciente === 'RN' && !l.idPacienteRN && !!l.idPacienteMae))) &&
         String(l.ID_Leito) !== String(leitoAtual.ID_Leito)
       );
 
@@ -1542,9 +1511,9 @@
       }
 
       document.getElementById('trocaIdInternacao').value = idInternacao;
-      document.getElementById('trocaPaciente').value = leitoAtual.pacienteNome || '';
+      document.getElementById('trocaPaciente').value = (integrante && integrante.nome) || leitoAtual.pacienteNome || '';
       document.getElementById('trocaNovoLeito').innerHTML = opcoes.map(l =>
-        `<option value="${esc(l.ID_Leito)}">${esc(l.Numero_Leito)}</option>`).join('');
+        `<option value="${NatusEscape.html(l.ID_Leito)}">${NatusEscape.html(l.Numero_Leito)}</option>`).join('');
 
       // Fecha o painel lateral antes de abrir o modal, evitando que o Offcanvas
       // fique sobreposto ao modal e capture os cliques.
@@ -1559,9 +1528,7 @@
       }, 150);
     }
 
-    function abrirAtribuirLeito(idInternacao) {
-      const p = (globalPacientesSemLeito || []).find(x => String(x.idInternacao) === String(idInternacao));
-      const nome = p ? p.nome : '';
+    function abrirAtribuirLeito(idInternacao, nome) {
       const opcoes = globalDataLeitos.filter(l => String(l.Status || '').trim().toUpperCase() === 'LIVRE');
       if (!opcoes.length) {
         alert('Ainda não há leitos livres cadastrados neste setor. Cadastre leitos em "Gerenciar Leitos" antes de atribuir.');
@@ -1571,7 +1538,7 @@
       document.getElementById('trocaIdInternacao').value = idInternacao;
       document.getElementById('trocaPaciente').value = nome || '';
       document.getElementById('trocaNovoLeito').innerHTML = opcoes.map(l =>
-        `<option value="${esc(l.ID_Leito)}">${esc(l.Numero_Leito)}</option>`).join('');
+        `<option value="${NatusEscape.html(l.ID_Leito)}">${NatusEscape.html(l.Numero_Leito)}</option>`).join('');
 
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalTrocaLeito')).show();
     }
@@ -1594,9 +1561,9 @@
     // Ocupado (leitos livres nunca ficam visíveis: são criados já ocupados e extintos na saída),
     // então não há filtros de status aqui - apenas a busca por nome/leito.
     function menuAcoesLeito(leito, opcoes = {}) {
-      const idLeito = esc(leito.ID_Leito);
-      const idPaciente = esc(leito.idPaciente || leito.ID_Paciente_Atual || '');
-      const idInternacao = esc(leito.idInternacao || leito.ID_Internacao || '');
+      const idLeito = leito.ID_Leito;
+      const idPaciente = leito.idPaciente || leito.ID_Paciente_Atual || '';
+      const idInternacao = leito.idInternacao || leito.ID_Internacao || '';
       const exameAtivo = leito.Exame_Externo === 'Sim';
       const incluirEdicao = opcoes.incluirEdicao !== false && idPaciente;
       const incluirTrocaSaida = opcoes.incluirTrocaSaida !== false && idInternacao;
@@ -1606,10 +1573,10 @@
             <i class="bi bi-list-check me-1"></i>Ações
           </button>
           <ul class="dropdown-menu dropdown-menu-end shadow">
-            ${incluirEdicao ? `<li><a class="dropdown-item" href="#" onclick="event.preventDefault(); event.stopPropagation(); preencherEAbrirEdicao('${idPaciente}')"><i class="bi bi-pencil-square me-2 text-warning"></i>Editar Dados da Internação</a></li>` : ''}
-            <li><a class="dropdown-item" href="#" onclick="event.preventDefault(); event.stopPropagation(); abrirIndicadoresLeito('${idLeito}')"><i class="bi bi-heart-pulse-fill me-2 text-info"></i>Indicadores de Qualidade / Método Canguru</a></li>
-            <li><a class="dropdown-item ${exameAtivo ? 'fw-bold text-warning' : ''}" href="#" onclick="event.preventDefault(); event.stopPropagation(); alternarExameExterno('${idLeito}', ${!exameAtivo})"><i class="bi bi-clipboard2-pulse me-2 text-warning"></i>${exameAtivo ? 'Marcar retorno do exame externo' : 'Paciente saiu para Exame Externo'}</a></li>
-            ${incluirTrocaSaida ? `<li><hr class="dropdown-divider"></li><li><a class="dropdown-item" href="#" onclick="event.preventDefault(); event.stopPropagation(); abrirTrocaLeito('${idInternacao}')"><i class="bi bi-arrow-left-right me-2 text-primary"></i>Trocar Leito</a></li><li><a class="dropdown-item text-danger" href="#" onclick="event.preventDefault(); event.stopPropagation(); abrirRegistrarSaida('${idInternacao}')"><i class="bi bi-box-arrow-right me-2"></i>Registrar Saída</a></li>` : ''}
+            ${incluirEdicao ? `<li><a class="dropdown-item" href="#" onclick="event.preventDefault(); event.stopPropagation(); preencherEAbrirEdicao('${NatusEscape.js(idPaciente)}')"><i class="bi bi-pencil-square me-2 text-warning"></i>Editar Dados da Internação</a></li>` : ''}
+            <li><a class="dropdown-item" href="#" onclick="event.preventDefault(); event.stopPropagation(); abrirIndicadoresLeito('${NatusEscape.js(idLeito)}')"><i class="bi bi-heart-pulse-fill me-2 text-info"></i>Indicadores de Qualidade / Método Canguru</a></li>
+            <li><a class="dropdown-item ${NatusEscape.html(exameAtivo ? 'fw-bold text-warning' : '')}" href="#" onclick="event.preventDefault(); event.stopPropagation(); alternarExameExterno('${NatusEscape.js(idLeito)}', ${NatusEscape.html(!exameAtivo)})"><i class="bi bi-clipboard2-pulse me-2 text-warning"></i>${NatusEscape.html(exameAtivo ? 'Marcar retorno do exame externo' : 'Paciente saiu para Exame Externo')}</a></li>
+            ${incluirTrocaSaida ? `<li><hr class="dropdown-divider"></li><li><a class="dropdown-item" href="#" onclick="event.preventDefault(); event.stopPropagation(); abrirTrocaLeito('${NatusEscape.js(idInternacao)}')"><i class="bi bi-arrow-left-right me-2 text-primary"></i>Trocar Leito</a></li><li><a class="dropdown-item text-danger" href="#" onclick="event.preventDefault(); event.stopPropagation(); abrirRegistrarSaida('${NatusEscape.js(idInternacao)}')"><i class="bi bi-box-arrow-right me-2"></i>Registrar Saída</a></li>` : ''}
           </ul>
         </div>`;
     }
@@ -1636,15 +1603,15 @@
 
         grid.innerHTML += `
           <div class="col-md-3">
-            <div class="card bed-card border-${nivel} border-2 p-3 shadow-sm" onclick="abrirOffcanvasDetalhes('${esc(leito.ID_Leito)}')">
+            <div class="card bed-card border-${NatusEscape.html(nivel)} border-2 p-3 shadow-sm" onclick="abrirOffcanvasDetalhes('${NatusEscape.js(leito.ID_Leito)}')">
               <div class="d-flex justify-content-between align-items-center">
-                <h5 class="fw-bold mb-0">${esc(leito.Numero_Leito)}</h5>
-                <span class="badge bg-${nivel}"><i class="bi bi-clock-history me-1"></i>${esc(horas)}h</span>
+                <h5 class="fw-bold mb-0">${NatusEscape.html(leito.Numero_Leito)}</h5>
+                <span class="badge bg-${NatusEscape.html(nivel)}"><i class="bi bi-clock-history me-1"></i>${NatusEscape.html(horas)}h</span>
               </div>
               <div class="mt-2">
-                <strong class="d-block text-truncate"><i class="bi bi-person me-1"></i>${esc(leito.pacienteNome)}</strong>
-                <div class="small mt-1"><span class="badge bg-${gravCor}">${esc(gravidade)}</span></div>
-                <div class="small text-muted mt-1"><i class="bi bi-calendar3 me-1"></i>Entrada: ${esc(leito.dataHoraInternacaoCompleta || '-')}</div>
+                <strong class="d-block text-truncate"><i class="bi bi-person me-1"></i>${NatusEscape.html(leito.pacienteNome)}</strong>
+                <div class="small mt-1"><span class="badge bg-${NatusEscape.html(gravCor)}">${NatusEscape.html(gravidade)}</span></div>
+                <div class="small text-muted mt-1"><i class="bi bi-calendar3 me-1"></i>Entrada: ${NatusEscape.html(leito.dataHoraInternacaoCompleta || '-')}</div>
                 ${leito.Exame_Externo === 'Sim' ? '<div class="alert alert-warning py-1 px-2 mt-2 mb-0 small fw-bold">PACIENTE EM EXAME EXTERNO</div>' : ''}
               </div>
               <div class="d-flex justify-content-end mt-2">
@@ -1668,9 +1635,9 @@
 
       const selectProc = document.getElementById('uenProcedencia');
       selectProc.innerHTML = '<option value="">Selecione...</option>' +
-        OPCOES_ORIGEM_BASE.filter(o => o !== 'UEN').map(o => `<option value="${esc(o)}">${esc(rotuloSetor(o))}</option>`).join('');
+        OPCOES_ORIGEM_BASE.filter(o => o !== 'UEN').map(o => `<option value="${NatusEscape.html(o)}">${NatusEscape.html(rotuloSetor(o))}</option>`).join('');
       document.getElementById('uenProcedenciaOutro').innerHTML = '<option value="">Selecione...</option>' +
-        OPCOES_PROCEDENCIA_EXTERNA.map(o => `<option value="${esc(o)}">${esc(o)}</option>`).join('');
+        OPCOES_PROCEDENCIA_EXTERNA.map(o => `<option value="${NatusEscape.html(o)}">${NatusEscape.html(o)}</option>`).join('');
 
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalAdmitirUEN')).show();
     }
@@ -1752,16 +1719,16 @@
             const podeAdmitirRN = !leito.idPacienteRN;
             detalhe = `
               <div class="mt-2 pt-2 border-top border-danger-subtle">
-                <strong class="d-block text-truncate"><i class="bi bi-person-heart me-1"></i>Mãe: ${esc(leito.nomeMae) || '—'}</strong>
-                <strong class="d-block text-truncate mt-1"><i class="bi bi-person-fill me-1"></i>RN: ${esc(leito.nomeRN) || '—'}</strong>
+                <strong class="d-block text-truncate"><i class="bi bi-person-heart me-1"></i>Mãe: ${NatusEscape.html(leito.nomeMae || '—')}</strong>
+                <strong class="d-block text-truncate mt-1"><i class="bi bi-person-fill me-1"></i>RN: ${NatusEscape.html(leito.nomeRN || '—')}</strong>
                 <div class="d-flex justify-content-between align-items-center mt-1">
-                  <small class="opacity-75"><i class="bi bi-calendar3 me-1"></i>Int: ${esc(leito.dataInternacao || '-')}</small>
-                  <span class="badge bg-danger">${esc(leito.diasInternado)} ${leito.diasInternado === 1 ? 'dia' : 'dias'}</span>
+                  <small class="opacity-75"><i class="bi bi-calendar3 me-1"></i>Int: ${NatusEscape.html(leito.dataInternacao || '-')}</small>
+                  <span class="badge bg-danger">${NatusEscape.html(leito.diasInternado)} ${NatusEscape.html(leito.diasInternado === 1 ? 'dia' : 'dias')}</span>
                 </div>
                 ${leito.Exame_Externo === 'Sim' ? '<div class="alert alert-warning py-1 px-2 mt-2 mb-0 small fw-bold"><i class="bi bi-clipboard2-pulse me-1"></i> PACIENTE EM EXAME EXTERNO</div>' : ''}
                 <div class="d-flex flex-wrap gap-2 mt-2">
-                  ${podeAdmitirMae ? `<button type="button" class="btn btn-sm btn-success fw-semibold" onclick="event.stopPropagation(); abrirNovaInternacaoNoLeito('${esc(leito.ID_Leito)}', 'MAE')"><i class="bi bi-person-plus-fill me-1"></i>Admitir Mãe</button>` : ''}
-                  ${podeAdmitirRN ? `<button type="button" class="btn btn-sm btn-primary fw-semibold" onclick="event.stopPropagation(); abrirNovaInternacaoNoLeito('${esc(leito.ID_Leito)}', 'RN')"><i class="bi bi-person-plus-fill me-1"></i>Admitir RN</button>` : ''}
+                  ${podeAdmitirMae ? `<button type="button" class="btn btn-sm btn-success fw-semibold" onclick="event.stopPropagation(); abrirNovaInternacaoNoLeito('${NatusEscape.js(leito.ID_Leito)}', 'MAE')"><i class="bi bi-person-plus-fill me-1"></i>Admitir Mãe</button>` : ''}
+                  ${podeAdmitirRN ? `<button type="button" class="btn btn-sm btn-primary fw-semibold" onclick="event.stopPropagation(); abrirNovaInternacaoNoLeito('${NatusEscape.js(leito.ID_Leito)}', 'RN')"><i class="bi bi-person-plus-fill me-1"></i>Admitir RN</button>` : ''}
                   <div class="ms-auto">${menuAcoesLeito(leito)}</div>
                 </div>
               </div>
@@ -1769,10 +1736,10 @@
           } else {
             detalhe = `
               <div class="mt-2 pt-2 border-top border-danger-subtle">
-                <strong class="d-block text-truncate"><i class="bi bi-person me-1"></i>${esc(leito.pacienteNome)}</strong>
+                <strong class="d-block text-truncate"><i class="bi bi-person me-1"></i>${NatusEscape.html(leito.pacienteNome)}</strong>
                 <div class="d-flex justify-content-between align-items-center mt-1">
-                  <small class="opacity-75"><i class="bi bi-calendar3 me-1"></i>Int: ${esc(leito.dataInternacao || '-')}</small>
-                  <span class="badge bg-danger">${esc(leito.diasInternado)} ${leito.diasInternado === 1 ? 'dia' : 'dias'}</span>
+                  <small class="opacity-75"><i class="bi bi-calendar3 me-1"></i>Int: ${NatusEscape.html(leito.dataInternacao || '-')}</small>
+                  <span class="badge bg-danger">${NatusEscape.html(leito.diasInternado)} ${NatusEscape.html(leito.diasInternado === 1 ? 'dia' : 'dias')}</span>
                 </div>
                 ${leito.Exame_Externo === 'Sim' ? '<div class="alert alert-warning py-1 px-2 mt-2 mb-0 small fw-bold"><i class="bi bi-clipboard2-pulse me-1"></i> PACIENTE EM EXAME EXTERNO</div>' : ''}
                 <div class="d-flex justify-content-end align-items-center mt-2">${menuAcoesLeito(leito)}</div>
@@ -1783,26 +1750,26 @@
 
         const menuStatus = leito.Status === 'Ocupado' ? '' : `
           <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="#" onclick="event.stopPropagation(); mudarStatus('${esc(leito.ID_Leito)}', 'Livre')">🟢 Livre</a></li>
-            <li><a class="dropdown-item" href="#" onclick="event.stopPropagation(); mudarStatus('${esc(leito.ID_Leito)}', 'Reservado')">🟡 Reserva</a></li>
-            <li><a class="dropdown-item" href="#" onclick="event.stopPropagation(); mudarStatus('${esc(leito.ID_Leito)}', 'Bloqueado')">⚫ Bloqueado</a></li>
+            <li><a class="dropdown-item" href="#" onclick="event.stopPropagation(); mudarStatus('${NatusEscape.js(leito.ID_Leito)}', 'Livre')">🟢 Livre</a></li>
+            <li><a class="dropdown-item" href="#" onclick="event.stopPropagation(); mudarStatus('${NatusEscape.js(leito.ID_Leito)}', 'Reservado')">🟡 Reserva</a></li>
+            <li><a class="dropdown-item" href="#" onclick="event.stopPropagation(); mudarStatus('${NatusEscape.js(leito.ID_Leito)}', 'Bloqueado')">⚫ Bloqueado</a></li>
           </ul>
         `;
 
         grid.innerHTML += `
           <div class="col-md-3">
-            <div class="card bed-card status-${esc(leito.Status)} p-3 shadow-sm border-2 ${texto && coincide ? 'card-highlight' : ''}" onclick="abrirOffcanvasDetalhes('${esc(leito.ID_Leito)}')">
+            <div class="card bed-card status-${NatusEscape.html(leito.Status)} p-3 shadow-sm border-2 ${NatusEscape.html(texto && coincide ? 'card-highlight' : '')}" onclick="abrirOffcanvasDetalhes('${NatusEscape.js(leito.ID_Leito)}')">
               <div class="d-flex justify-content-between align-items-center">
-                <h5 class="fw-bold mb-0">${esc(leito.Numero_Leito)}</h5>
-                <i class="bi ${icon} fs-4"></i>
+                <h5 class="fw-bold mb-0">${NatusEscape.html(leito.Numero_Leito)}</h5>
+                <i class="bi ${NatusEscape.html(icon)} fs-4"></i>
               </div>
               <div class="d-flex justify-content-between align-items-center mt-2">
-                <span class="fw-semibold">Status: ${esc(rotuloStatus)}</span>
+                <span class="fw-semibold">Status: ${NatusEscape.html(rotuloStatus)}</span>
                 ${leito.Status !== 'Ocupado' ? `
                   <div class="d-flex gap-1" onclick="event.stopPropagation();">
-                    ${leito.Status === 'Livre' ? `<button type="button" class="btn btn-sm btn-success fw-semibold" onclick="event.stopPropagation(); abrirNovaInternacaoNoLeito('${esc(leito.ID_Leito)}')"><i class="bi bi-person-plus-fill me-1"></i>Admitir aqui</button>` : ''}
-                    ${leito.Status === 'Higienizacao' ? `<button type="button" class="btn btn-sm btn-info text-white fw-semibold" onclick="event.stopPropagation(); concluirHigienizacao('${esc(leito.ID_Leito)}')"><i class="bi bi-stars me-1"></i>Concluir Higienização</button>` : ''}
-                    <button type="button" class="btn btn-sm btn-outline-secondary fw-semibold" onclick="event.stopPropagation(); abrirAlterarStatusLeito('${esc(leito.ID_Leito)}')"><i class="bi bi-sliders me-1"></i>Alterar Status</button>
+                    ${leito.Status === 'Livre' ? `<button type="button" class="btn btn-sm btn-success fw-semibold" onclick="event.stopPropagation(); abrirNovaInternacaoNoLeito('${NatusEscape.js(leito.ID_Leito)}')"><i class="bi bi-person-plus-fill me-1"></i>Admitir aqui</button>` : ''}
+                    ${leito.Status === 'Higienizacao' ? `<button type="button" class="btn btn-sm btn-info text-white fw-semibold" onclick="event.stopPropagation(); concluirHigienizacao('${NatusEscape.js(leito.ID_Leito)}')"><i class="bi bi-stars me-1"></i>Concluir Higienização</button>` : ''}
+                    <button type="button" class="btn btn-sm btn-outline-secondary fw-semibold" onclick="event.stopPropagation(); abrirAlterarStatusLeito('${NatusEscape.js(leito.ID_Leito)}')"><i class="bi bi-sliders me-1"></i>Alterar Status</button>
                   </div>` : ''}
               </div>
               ${detalhe}
@@ -1820,41 +1787,41 @@
       body.innerHTML = `
         <div class="card border-0 bg-light p-3 mb-3 shadow-sm">
           <h6 class="text-muted mb-1">Paciente</h6>
-          ${['ALCON 1','ALCON 2'].includes(String(setorAtualParam).trim().toUpperCase()) ? `<div class="fw-bold text-dark">Mãe: ${esc(leito.nomeMae) || '—'}</div><div class="fw-bold text-dark mt-1">RN: ${esc(leito.nomeRN) || '—'}</div>` : `<h5 class="fw-bold text-dark">${esc(leito.pacienteNome)}</h5>`}
+          ${['ALCON 1','ALCON 2'].includes(String(setorAtualParam).trim().toUpperCase()) ? `<div class="fw-bold text-dark">Mãe: ${NatusEscape.html(leito.nomeMae || '—')}</div><div class="fw-bold text-dark mt-1">RN: ${NatusEscape.html(leito.nomeRN || '—')}</div>` : `<h5 class="fw-bold text-dark">${NatusEscape.html(leito.pacienteNome)}</h5>`}
         </div>
         <ul class="list-group list-group-flush mb-3">
-          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Leito:</span><span class="fw-bold">${esc(leito.Numero_Leito)}</span></li>
-          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Nº Prontuário</span><span>${esc(leito.numeroProntuario || '-')}</span></li>
-          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Data de Nascimento:</span><span>${esc(leito.dataNascimento || '-')}</span></li>
-          ${!(String(setorAtualParam).toUpperCase() === 'UTI MATERNA') ? `<li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Hora Nasc.:</span><span>${esc(leito.horaNascimento || '-')}</span></li>` : ''}
-          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">IG:</span><span>${esc(leito.ig || '-')}</span></li>
-          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Sexo:</span><span>${leito.sexo === 'F' ? 'Feminino' : 'Masculino'}</span></li>
-          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Internação:</span><span>${esc(leito.dataInternacao || '-')}</span></li>
-          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Procedência:</span><span>${esc(leito.procedencia || '-')}</span></li>
-          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Parto:</span><span>${esc(leito.tipoParto || '-')}</span></li>
-          ${String(setorAtualParam).toUpperCase() !== 'UTI MATERNA' ? `<li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Peso ao Nascer:</span><span>${esc(leito.pesoNascer || '-')}</span></li>` : ''}
-          <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center"><span class="fw-semibold text-muted">Dias Internado:</span><span class="badge bg-danger fs-6">${esc(leito.diasInternado)} ${leito.diasInternado === 1 ? 'dia' : 'dias'}</span></li>
+          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Leito:</span><span class="fw-bold">${NatusEscape.html(leito.Numero_Leito)}</span></li>
+          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Nº Prontuário</span><span>${NatusEscape.html(leito.numeroProntuario || '-')}</span></li>
+          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Data de Nascimento:</span><span>${NatusEscape.html(leito.dataNascimento || '-')}</span></li>
+          ${!(String(setorAtualParam).toUpperCase() === 'UTI MATERNA') ? `<li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Hora Nasc.:</span><span>${NatusEscape.html(leito.horaNascimento || '-')}</span></li>` : ''}
+          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">IG:</span><span>${NatusEscape.html(leito.ig || '-')}</span></li>
+          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Sexo:</span><span>${NatusEscape.html(leito.sexo === 'F' ? 'Feminino' : 'Masculino')}</span></li>
+          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Internação:</span><span>${NatusEscape.html(leito.dataInternacao || '-')}</span></li>
+          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Procedência:</span><span>${NatusEscape.html(leito.procedencia || '-')}</span></li>
+          <li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Parto:</span><span>${NatusEscape.html(leito.tipoParto || '-')}</span></li>
+          ${String(setorAtualParam).toUpperCase() !== 'UTI MATERNA' ? `<li class="list-group-item bg-transparent d-flex justify-content-between"><span class="fw-semibold text-muted">Peso ao Nascer:</span><span>${NatusEscape.html(leito.pesoNascer || '-')}</span></li>` : ''}
+          <li class="list-group-item bg-transparent d-flex justify-content-between align-items-center"><span class="fw-semibold text-muted">Dias Internado:</span><span class="badge bg-danger fs-6">${NatusEscape.html(leito.diasInternado)} ${NatusEscape.html(leito.diasInternado === 1 ? 'dia' : 'dias')}</span></li>
         </ul>
 
         <div class="border-top pt-3 mt-3">
           <div class="d-flex flex-wrap gap-2">
-            <button type="button" class="btn btn-sm btn-warning fw-semibold" onclick="event.stopPropagation(); preencherEAbrirEdicao('${esc(leito.idPaciente || leito.ID_Paciente_Atual || '')}')">
+            <button type="button" class="btn btn-sm btn-warning fw-semibold" onclick="event.stopPropagation(); preencherEAbrirEdicao('${NatusEscape.js(leito.idPaciente || leito.ID_Paciente_Atual || '')}')">
               <i class="bi bi-pencil-square me-1"></i>Editar Dados
             </button>
-            <button type="button" class="btn btn-sm btn-info text-white fw-semibold" onclick="event.stopPropagation(); abrirIndicadoresLeito('${esc(leito.ID_Leito)}')">
+            <button type="button" class="btn btn-sm btn-info text-white fw-semibold" onclick="event.stopPropagation(); abrirIndicadoresLeito('${NatusEscape.js(leito.ID_Leito)}')">
               <i class="bi bi-heart-pulse-fill me-1"></i>Indicadores de Qualidade / Método Canguru
             </button>
-            <button type="button" class="btn btn-sm ${leito.Exame_Externo === 'Sim' ? 'btn-warning' : 'btn-outline-warning'} fw-semibold" onclick="event.stopPropagation(); alternarExameExterno('${esc(leito.ID_Leito)}', ${leito.Exame_Externo !== 'Sim'})">
-              <i class="bi bi-clipboard2-pulse me-1"></i>${leito.Exame_Externo === 'Sim' ? 'Marcar retorno do exame' : 'Exame Externo'}
+            <button type="button" class="btn btn-sm ${NatusEscape.html(leito.Exame_Externo === 'Sim' ? 'btn-warning' : 'btn-outline-warning')} fw-semibold" onclick="event.stopPropagation(); alternarExameExterno('${NatusEscape.js(leito.ID_Leito)}', ${NatusEscape.html(leito.Exame_Externo !== 'Sim')})">
+              <i class="bi bi-clipboard2-pulse me-1"></i>${NatusEscape.html(leito.Exame_Externo === 'Sim' ? 'Marcar retorno do exame' : 'Exame Externo')}
             </button>
             ${leito.idInternacao ? `
-            <button type="button" class="btn btn-sm btn-outline-primary fw-semibold" onclick="event.stopPropagation(); abrirProntuarioPEP('${esc(leito.idInternacao)}')">
+            <button type="button" class="btn btn-sm btn-outline-primary fw-semibold" onclick="event.stopPropagation(); abrirProntuarioPEP('${NatusEscape.js(leito.idInternacao)}')">
               <i class="bi bi-journal-medical me-1"></i>Prontuário (PEP)
             </button>
-            <button type="button" class="btn btn-sm btn-outline-primary fw-semibold" onclick="event.stopPropagation(); abrirTrocaLeito('${esc(leito.idInternacao)}')">
+            <button type="button" class="btn btn-sm btn-outline-primary fw-semibold" onclick="event.stopPropagation(); abrirTrocaLeito('${NatusEscape.js(leito.idInternacao)}')">
               <i class="bi bi-arrow-left-right me-1"></i>Trocar Leito
             </button>
-            <button type="button" class="btn btn-sm btn-outline-danger fw-semibold" onclick="event.stopPropagation(); abrirRegistrarSaida('${esc(leito.idInternacao)}')">
+            <button type="button" class="btn btn-sm btn-outline-danger fw-semibold" onclick="event.stopPropagation(); abrirRegistrarSaida('${NatusEscape.js(leito.idInternacao)}')">
               <i class="bi bi-box-arrow-right me-1"></i>Registrar Saída
             </button>` : ''}
           </div>
@@ -1878,6 +1845,8 @@
       const ehAlcon = ['ALCON 1','ALCON 2'].includes(String(setorAtualParam).trim().toUpperCase());
       const tipoPaciente = String((ativo && ativo.tipoPaciente) || (leito && leito.tipoPaciente) || '').trim().toUpperCase().replace('MÃE','MAE');
       const fonte = ativo || leito;
+      document.getElementById('editTipoPacienteWrap').classList.toggle('d-none', !ehAlcon);
+      document.getElementById('editTipoPaciente').value = tipoPaciente;
 
       document.getElementById('editIdPaciente').value = idPaciente;
       document.getElementById('editIdInternacao').value = ativo ? ativo.idInternacao : leito.idInternacao;
@@ -1967,7 +1936,7 @@
       indTimeoutId = setTimeout(() => {
         if (meuRequestId !== indRequestId) return;
         document.getElementById('indHistorico').innerHTML =
-          '<span class="text-danger">Tempo esgotado ao carregar. <a href="#" onclick="event.preventDefault(); abrirIndicadoresLeito(\'' + leitoId + '\')">Tentar novamente</a></span>';
+          '<span class="text-danger">Tempo esgotado ao carregar. <a href="#" onclick="event.preventDefault(); abrirIndicadoresLeito(\'' + NatusEscape.js(leitoId) + '\')">Tentar novamente</a></span>';
       }, 10000);
 
       google.script.run
@@ -1984,7 +1953,7 @@
           if (meuRequestId !== indRequestId) return;
           clearTimeout(indTimeoutId);
           document.getElementById('indHistorico').innerHTML =
-            '<span class="text-danger">Não foi possível carregar. <a href="#" onclick="event.preventDefault(); abrirIndicadoresLeito(\'' + leitoId + '\')">Tentar novamente</a></span>';
+            '<span class="text-danger">Não foi possível carregar. <a href="#" onclick="event.preventDefault(); abrirIndicadoresLeito(\'' + NatusEscape.js(leitoId) + '\')">Tentar novamente</a></span>';
           alert(err && err.message ? err.message : 'Não foi possível carregar os indicadores deste leito.');
         })
         .buscarIndicadoresPorLeito(leitoId);
@@ -2021,13 +1990,13 @@
         const acompanhantes = ['Mae','Pai'].filter(v => String(r['Visita_' + v]).trim() === 'Sim');
         const visitantes = ['Irmao','Avos'].filter(v => String(r['Visita_' + v]).trim() === 'Sim');
         const partes = [];
-        if (acompanhantes.length) partes.push(`<span class="fw-semibold">Acompanhantes:</span> ${acompanhantes.join(', ')}`);
-        if (visitantes.length) partes.push(`<span class="fw-semibold">Visitantes:</span> ${visitantes.join(', ')}`);
+        if (acompanhantes.length) partes.push(`<span class="fw-semibold">Acompanhantes:</span> ${NatusEscape.html(acompanhantes.join(', '))}`);
+        if (visitantes.length) partes.push(`<span class="fw-semibold">Visitantes:</span> ${NatusEscape.html(visitantes.join(', '))}`);
         if (!partes.length) partes.push('<span class="text-muted">Nenhuma visita registrada</span>');
         return `
           <div class="border rounded px-2 py-2 mb-1">
-            <div><strong>${esc(r.Data)}</strong> · Extração: ${esc(r.Extracao_Leite_Beira_Leito || 'Não')}</div>
-            <div class="mt-1">${partes.join(' &nbsp;·&nbsp; ')}</div>
+            <div><strong>${NatusEscape.html(r.Data)}</strong> · Extração: ${NatusEscape.html(r.Extracao_Leite_Beira_Leito || 'Não')}</div>
+            <div class="mt-1">${NatusEscape.html(partes.join(' &nbsp;·&nbsp; '))}</div>
           </div>`;
       }).join('');
     }
@@ -2061,8 +2030,8 @@
         const classificacao = mostrarClassificacao && r.Dia_Vida ? ` · ${r.Dia_Vida}` : '';
         return `
           <div class="border rounded px-2 py-1 mb-1 d-flex justify-content-between align-items-center">
-            <span><strong>${esc(r.Data_Contato || '-')}</strong> · ${esc(r.Contato_Realizado || 'Não')}${esc(classificacao)}</span>
-            <span class="badge text-bg-light">${r.Contato_Realizado === 'Sim' ? (Number(r.Duracao_Min) || 0) + ' min' : '—'}</span>
+            <span><strong>${NatusEscape.html(r.Data_Contato || '-')}</strong> · ${NatusEscape.html(r.Contato_Realizado || 'Não')}${NatusEscape.html(classificacao)}</span>
+            <span class="badge text-bg-light">${NatusEscape.html(r.Contato_Realizado === 'Sim' ? (Number(r.Duracao_Min) || 0) + ' min' : '—')}</span>
           </div>`;
       }).join('');
     }
@@ -2140,7 +2109,7 @@
         .withFailureHandler(err => alert(err && err.message ? err.message : 'Não foi possível concluir a higienização.'))
         .concluirHigienizacao(leitoId);
     }
-    // FASE 4 — abre o Prontuário Eletrônico (PEP) do paciente em uma nova aba (sessão por cookie).
+    // FASE 4 — abre o Prontuário Eletrônico (PEP) do paciente em uma nova aba.
     function abrirProntuarioPEP(idInternacao) {
       if (!idInternacao) return;
       window.open('/?view=prontuario&id=' + encodeURIComponent(idInternacao), '_blank');
@@ -2230,6 +2199,7 @@
       const payload = {
         idInternacao: document.getElementById('movPaciente').value,
         leitoDestinoId: document.getElementById('movLeitoDestino').value,
+        tipoPaciente: document.getElementById('movTipoPacienteWrap').classList.contains('d-none') ? '' : document.getElementById('movTipoPaciente').value,
         data: document.getElementById('movData').value,
         hora: document.getElementById('movHora').value,
         tipoMovimento: document.getElementById('movTipo').value,
@@ -2238,7 +2208,6 @@
           : document.getElementById('movDestino').value,
         observacao: document.getElementById('movObs').value,
         pesoSaidaGramas: document.getElementById('movPesoSaida').value,
-        tipoPacienteDestino: (document.getElementById('movTipoPacienteDestino') || {}).value || '',
         aleitamentoExclusivo: (document.querySelector('input[name="movAleitamento"]:checked') || {}).value || '',
         etapaCanguru: document.getElementById('movEtapaCanguru').value
       };
@@ -2282,7 +2251,7 @@
         dataNascimento: document.getElementById('editNasc').value,
         horaNascimento: (String(setorAtualParam).trim().toUpperCase() === 'UTI MATERNA' || (['ALCON 1','ALCON 2'].includes(String(setorAtualParam).trim().toUpperCase()) && String((globalInternadosAtivos.find(x => String(x.idInternacao) === String(document.getElementById('editIdInternacao').value)) || {}).tipoPaciente || '').toUpperCase().replace('MÃE','MAE') === 'MAE')) ? '' : document.getElementById('editHoraNasc').value,
         ig: (['ALCON 1','ALCON 2'].includes(String(setorAtualParam).trim().toUpperCase()) && String((globalInternadosAtivos.find(x => String(x.idInternacao) === String(document.getElementById('editIdInternacao').value)) || {}).tipoPaciente || '').toUpperCase().replace('MÃE','MAE') === 'MAE') ? '' : document.getElementById('editIG').value,
-        tipoPaciente: String((globalInternadosAtivos.find(x => String(x.idInternacao) === String(document.getElementById('editIdInternacao').value)) || {}).tipoPaciente || '').toUpperCase().replace('MÃE','MAE'),
+        tipoPaciente: document.getElementById('editTipoPacienteWrap').classList.contains('d-none') ? '' : document.getElementById('editTipoPaciente').value,
         tipoProcedimento: document.querySelector('input[name="editTipoParto"]:checked').value,
         tipoParto: document.querySelector('input[name="editTipoParto"]:checked').value,
         observacaoProcedimento: document.getElementById('editObservacaoProcedimento').value

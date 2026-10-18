@@ -225,9 +225,6 @@ CREATE TABLE IF NOT EXISTS evolucoes_soap (
   criado_em       timestamp NOT NULL DEFAULT (now() AT TIME ZONE 'America/Manaus'),
   -- Segurança clínica: a evolução NUNCA é apagada fisicamente. Ao "excluir", o registro é marcado
   -- como excluído e preservado (histórico/auditoria do prontuário), saindo das listagens padrão.
-  -- `versao` controla o versionamento: a cada edição o conteúdo anterior é copiado para
-  -- evolucoes_soap_versoes antes de sobrescrever, preservando integralmente o histórico clínico.
-  versao          integer NOT NULL DEFAULT 1,
   excluido        boolean NOT NULL DEFAULT false,
   excluido_por    text NOT NULL DEFAULT '',
   excluido_em     timestamp,
@@ -235,27 +232,6 @@ CREATE TABLE IF NOT EXISTS evolucoes_soap (
 );
 CREATE INDEX IF NOT EXISTS ix_soap_internacao ON evolucoes_soap(id_internacao, data_hora);
 CREATE INDEX IF NOT EXISTS ix_soap_paciente ON evolucoes_soap(id_paciente);
-
--- Histórico de versões (edições) das evoluções SOAP. Cada edição arquiva aqui o conteúdo
--- anterior, de modo que nada do que foi registrado clinicamente se perde.
-CREATE TABLE IF NOT EXISTS evolucoes_soap_versoes (
-  id_versao       text PRIMARY KEY,
-  id_evolucao     text NOT NULL,
-  id_internacao   text NOT NULL DEFAULT '',
-  id_paciente     text NOT NULL DEFAULT '',
-  versao          integer NOT NULL DEFAULT 1,
-  data_hora       timestamp NOT NULL,
-  categoria       text NOT NULL DEFAULT '',
-  profissional    text NOT NULL DEFAULT '',
-  subjetivo       text NOT NULL DEFAULT '',
-  objetivo        text NOT NULL DEFAULT '',
-  avaliacao       text NOT NULL DEFAULT '',
-  plano           text NOT NULL DEFAULT '',
-  registrado_por  text NOT NULL DEFAULT '',
-  arquivado_em    timestamp NOT NULL DEFAULT (now() AT TIME ZONE 'America/Manaus'),
-  arquivado_por   text NOT NULL DEFAULT ''
-);
-CREATE INDEX IF NOT EXISTS ix_soap_versao_evolucao ON evolucoes_soap_versoes(id_evolucao, versao);
 
 CREATE TABLE IF NOT EXISTS prescricoes (
   id_prescricao  text PRIMARY KEY,
@@ -350,8 +326,6 @@ ALTER TABLE evolucoes_soap ADD COLUMN IF NOT EXISTS excluido      boolean NOT NU
 ALTER TABLE evolucoes_soap ADD COLUMN IF NOT EXISTS excluido_por  text NOT NULL DEFAULT '';
 ALTER TABLE evolucoes_soap ADD COLUMN IF NOT EXISTS excluido_em   timestamp;
 ALTER TABLE evolucoes_soap ADD COLUMN IF NOT EXISTS atualizado_em timestamp;
--- Versionamento: cada edição preserva o conteúdo anterior em evolucoes_soap_versoes.
-ALTER TABLE evolucoes_soap ADD COLUMN IF NOT EXISTS versao        integer NOT NULL DEFAULT 1;
 
 -- FASE 5 — novo status operacional "Higienizacao" (Higienização Pendente) no giro de leitos.
 ALTER TABLE leitos DROP CONSTRAINT IF EXISTS leitos_status_check;

@@ -89,12 +89,15 @@
   } catch (e) {}
 
   /* ---------- Logout / navegação ---------- */
+  function tokenAtual() {
+    try { if (typeof token !== 'undefined' && token) return token; } catch (e) {}
+    return new URLSearchParams(location.search).get('token') || '';
+  }
   function sairPadrao() {
     try { sessionStorage.clear(); } catch (e) {}
     var fim = function () { window.top.location.href = '/?view=login'; };
     if (window.google && google.script && google.script.run) {
-      // A sessão é encerrada pelo cookie HttpOnly (o servidor lê o token do cookie e o revoga).
-      google.script.run.withSuccessHandler(fim).withFailureHandler(fim).encerrarSessao();
+      google.script.run.withSuccessHandler(fim).withFailureHandler(fim).encerrarSessao(tokenAtual());
     } else fim();
   }
   function setorCorrente() {

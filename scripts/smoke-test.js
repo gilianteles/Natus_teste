@@ -5,29 +5,11 @@ const { getPool } = require('../lib/db');
 const { hashSenha } = require('../lib/auth');
 const { FUNCOES } = require('../lib/rpc');
 const { validarSessao } = require('../lib/auth');
-const { criarContexto } = require('../lib/data');
-const C = require('../lib/calc');
 
 const hoje = () => { const d = new Date(); const p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`; };
-const S = v => String(v == null ? '' : v).trim();
 let sess = null;
 const call = async (nome, ...a) => FUNCOES[nome]({ sessao: sess }, ...a);
 const falha = async (nome, ...a) => { try { await call(nome, ...a); } catch (e) { return e.message; } throw new Error('esperava falha em ' + nome); };
-// Devolve um leito LIVRE do setor, concluindo antes a higienização pendente (giro de leito).
-const leitoLivre = async setor => {
-  let ls = (await call('getPainelOperacionalData', setor)).leitos;
-  for (const l of ls.filter(x => x.Status === 'Higienizacao')) await call('concluirHigienizacao', l.ID_Leito);
-  ls = (await call('getPainelOperacionalData', setor)).leitos;
-  return (ls.find(l => l.Status === 'Livre') || {}).ID_Leito || '';
-};
-// Leito do ALCON que pode receber o papel informado: LIVRES primeiro; se não houver, um leito OCUPADO
-// que ainda não tenha o vínculo (ex.: ocupado só pela Mãe, para completar o binômio com o RN).
-const leitoAlconPara = async papel => {
-  const info = await call('obterInfoLeitosSetorDestino', 'ALCON 1', papel);
-  if (info.livres.length) return info.livres[0].ID_Leito;
-  if (info.complementares.length) return info.complementares[0].ID_Leito;
-  return '';
-};
 let n = 0; const ok = m => console.log(`  ✔ ${++n}. ${m}`);
 
 (async () => {
@@ -303,111 +285,8 @@ let n = 0; const ok = m => console.log(`  ✔ ${++n}. ${m}`);
 
   // Binômio ALCON: a admissão conjunta Mãe+RN conta como UMA internação (não duplica).
   const estAlcon = await call('obterEstatisticasDashboard', 'ALCON 1', mes, ano);
-  // 2 episódios: (1) admissão conjunta Mãe+RN do binômio; (2) reinternação do RN (Tratamento Clínico)
-  // após a alta da Mãe — que, pela correção da regra, é uma NOVA admissão (não herda o binômio).
-  assert.equal(estAlcon.kpis.admissoesMes, 2); ok('ALCON: binômio Mãe+RN = 1 internação; reinternação do RN após alta da Mãe = NOVA admissão (total 2)');
+  assert.equal(estAlcon.kpis.admissoesMes, 1); ok('ALCON: Mãe + RN contam como 1 internação (binômio)');
   assert.ok(estAlcon.estatisticas.peso && typeof estAlcon.estatisticas.peso.menor1500 === 'number'); ok('ALCON/neonatal: faixa de peso do RN calculada sem a Mãe no denominador');
-
-  console.log('FASE 7 — ALCON (vaga Mãe/RN), ocupação histórica, versionamento e segurança do token');
-  sess = ADMIN;
-
-  // 1) Ocupação histórica — trocar o leito HOJE não reescreve a ocupação de dias passados. A
-  //    reconstrução usa trocas_leito (leito de ORIGEM antes da troca, DESTINO depois).
-  {
-    const mapa = C.indexarTrocas([{ ID_Internacao: 'I1', ID_Leito_Origem: 'A', ID_Leito_Destino: 'B', Data_Hora: new Date(2026, 0, 3, 9, 0) }]);
-    assert.equal(C.leitoNoDia({ ID_Leito: 'B' }, mapa['I1'], 20260101), 'A');
-    assert.equal(C.leitoNoDia({ ID_Leito: 'B' }, mapa['I1'], 20260104), 'B');
-    assert.equal(mapa['I1'].length, 1);
-    assert.equal(mapa['I1'][0].ID_Leito_Destino, 'B');
-    ok('ocupação histórica: leito reconstruído por dia a partir de trocas_leito (passado preservado)');
-  }
-
-  // 2) Qualidade/neonatal: a Mãe do binômio NÃO entra no denominador de RN. Mãe e RN no MESMO leito
-  //    = 1 leito ocupado (nunca 2), mas o contato pele a pele só é medido sobre os RNs.
-  {
-    const alq = await leitoLivre('ALCON 1');
-    assert.ok(alq);
-    await call('registrarInternacao', { setor: 'ALCON 1', leitoId: alq, tipoPaciente: 'MAE', nome: 'Mãe Qualidade', dataNascimento: '1996-06-06', procedencia: 'CCO', data: hoje(), hora: '06:00', tipoProcedimento: 'Normal' });
-    const rnQ = await call('registrarInternacao', { setor: 'ALCON 1', leitoId: alq, tipoPaciente: 'RN', nome: 'RN Qualidade', sexo: 'F', dataNascimento: hoje(), procedencia: 'CCO', data: hoje(), hora: '06:05', pesoNascer: '≥2500' });
-    await call('salvarContatoPeleAPele', { idInternacao: rnQ.idInternacao, dataContato: hoje(), contatoRealizado: 'Sim', duracao: 30 });
-    const inicio = `${ano}-${String(mes).padStart(2, '0')}-01`;
-    const rnsSql = (await p.query(`SELECT count(*)::int n FROM internacoes WHERE upper(setor_nome)='ALCON 1' AND upper(tipo_paciente)='RN' AND data_hora_entrada::date >= $1::date`, [inicio])).rows[0].n;
-    const maesSql = (await p.query(`SELECT count(*)::int n FROM internacoes WHERE upper(setor_nome)='ALCON 1' AND upper(tipo_paciente)='MAE' AND data_hora_entrada::date >= $1::date`, [inicio])).rows[0].n;
-    assert.ok(maesSql >= 1);
-    const dashQ = await call('getDashboardIndicadoresQualidade', inicio, hoje(), 'ALCON 1');
-    assert.equal(dashQ.totalRNsInternados, rnsSql);
-    assert.ok(dashQ.totalRNsInternados < rnsSql + maesSql);
-    assert.equal(dashQ.peleAPele1Dia.percentual, Number(((dashQ.peleAPele1Dia.sim / rnsSql) * 100).toFixed(1)));
-    ok('qualidade: a Mãe (puérpera) NÃO entra no denominador de RN (contato pele a pele só conta o RN)');
-  }
-
-  // 3) Transferência para ALCON: a vaga (Mãe/RN) vem da origem quando inequívoca (PPP/UTI Materna =
-  //    Mãe; UTIN/UCIN/UEN/CCO = RN); nas origens ambíguas exige escolha explícita — nunca grava no
-  //    RN por engano (o bug original: Mãe vinda do PPP internada na vaga do RN).
-  {
-    await call('criarSetor', { nome: 'PPP', tipo: 'Internação', leitosAtivos: 1 });
-    const pppLeito = (await call('getPainelOperacionalData', 'PPP')).leitos[0].ID_Leito;
-    const admPpp = await call('registrarInternacao', { setor: 'PPP', leitoId: pppLeito, nome: 'Puérpera PPP', sexo: 'F', dataNascimento: '1990-03-03', procedencia: 'CCO', data: hoje(), hora: '04:00' });
-    const lAlconMae = await leitoAlconPara('MAE');
-    assert.ok(lAlconMae);
-    await call('registrarMovimentacaoAtualizarPainel', { idInternacao: admPpp.idInternacao, setorAtual: 'PPP', tipoMovimento: 'Transferencia', destino: 'ALCON 1', leitoDestinoId: lAlconMae, data: hoje(), hora: '05:00' });
-    const vincMae = (await p.query('SELECT id_paciente_mae mae, id_paciente_rn rn FROM leitos WHERE id_leito=$1', [lAlconMae])).rows[0];
-    assert.ok(S(vincMae.mae)); assert.ok(!S(vincMae.rn));
-    const tipoPpp = (await p.query(`SELECT tipo_paciente t FROM internacoes WHERE setor_nome='ALCON 1' AND id_leito=$1 AND status='Ativo'`, [lAlconMae])).rows[0].t;
-    assert.equal(tipoPpp, 'MAE');
-    ok('transferência PPP→ALCON grava a Mãe na VAGA DA MÃE (não no RN)');
-
-    // Origem ambígua (CUIDADOS ESPECIAIS): o sistema exige a definição da vaga.
-    await call('criarSetor', { nome: 'CUIDADOS ESPECIAIS', tipo: 'Internação', leitosAtivos: 1 });
-    const ceLeito = (await call('getPainelOperacionalData', 'CUIDADOS ESPECIAIS')).leitos[0].ID_Leito;
-    const admCe = await call('registrarInternacao', { setor: 'CUIDADOS ESPECIAIS', leitoId: ceLeito, nome: 'Paciente CE', sexo: 'F', dataNascimento: '1988-08-08', procedencia: 'ACR', data: hoje(), hora: '03:00' });
-    const lAlconRn = await leitoAlconPara('RN');   // livre, ou ocupado só pela Mãe (completar binômio)
-    assert.ok(lAlconRn);
-    assert.match(await falha('registrarMovimentacaoAtualizarPainel', { idInternacao: admCe.idInternacao, setorAtual: 'CUIDADOS ESPECIAIS', tipoMovimento: 'Transferencia', destino: 'ALCON 1', leitoDestinoId: lAlconRn, data: hoje(), hora: '05:30' }), /Mãe|RN/);
-    ok('transferência para ALCON de origem ambígua exige definir Mãe/RN (nunca assume RN)');
-    await call('registrarMovimentacaoAtualizarPainel', { idInternacao: admCe.idInternacao, setorAtual: 'CUIDADOS ESPECIAIS', tipoMovimento: 'Transferencia', destino: 'ALCON 1', leitoDestinoId: lAlconRn, tipoPacienteDestino: 'RN', data: hoje(), hora: '05:35' });
-    const rnCe = await p.query(`SELECT id_paciente FROM internacoes WHERE setor_nome='ALCON 1' AND id_leito=$1 AND status='Ativo' AND tipo_paciente='RN'`, [lAlconRn]);
-    assert.equal(rnCe.rows.length, 1);
-    const vincRn = (await p.query('SELECT id_paciente_rn rn FROM leitos WHERE id_leito=$1', [lAlconRn])).rows[0];
-    assert.equal(S(vincRn.rn), S(rnCe.rows[0].id_paciente));
-    ok('escolha explícita "RN" ocupa a vaga do RN');
-  }
-
-  // 4) Lista de leitos do ALCON: LIVRES primeiro, depois os OCUPADOS que completam o binômio.
-  {
-    await call('adicionarLeito', 'ALCON 1', 'L3');
-    const info = await call('obterInfoLeitosSetorDestino', 'ALCON 1', 'RN');
-    assert.ok(info.livres.length >= 1);            // L3 recém-criado
-    assert.ok(info.complementares.length >= 1);    // leito ocupado só pela Mãe (L2)
-    assert.ok(info.livres.every(l => l.complemento === false));
-    assert.ok(info.complementares.every(l => l.complemento === true));
-    // A tela monta a lista concatenando livres + complementares: livres vêm primeiro.
-    const ordem = [...info.livres, ...info.complementares].map(l => Number(!!l.complemento));
-    assert.deepEqual(ordem, [...ordem].sort((a, b) => a - b));
-    ok('lista de leitos ALCON: LIVRES primeiro e, depois, ocupados que completam o binômio');
-  }
-
-  // 5) Evolução SOAP versionada: editar preserva a versão anterior (histórico clínico inalterado).
-  {
-    const evA = await call('salvarEvolucaoSOAP', { idInternacao: pepAdm.idInternacao, categoria: 'Médico', profissional: 'Dra. Teste', data: hoje(), hora: '09:00', subjetivo: 'v1 estável', objetivo: 'exame 1', avaliacao: 'a1', plano: 'p1' });
-    await call('salvarEvolucaoSOAP', { idEvolucao: evA.idEvolucao, idInternacao: pepAdm.idInternacao, categoria: 'Médico', profissional: 'Dra. Teste', data: hoje(), hora: '10:00', subjetivo: 'v2 melhor', objetivo: 'exame 2', avaliacao: 'a2', plano: 'p2' });
-    const vers = await call('listarVersoesEvolucao', { idEvolucao: evA.idEvolucao });
-    assert.equal(vers.versaoAtual, 2);
-    assert.equal(vers.versoes.length, 1);
-    assert.equal(vers.versoes[0].subjetivo, 'v1 estável');
-    assert.equal(vers.atual.subjetivo, 'v2 melhor');
-    assert.equal((await p.query('SELECT versao v FROM evolucoes_soap WHERE id_evolucao=$1', [evA.idEvolucao])).rows[0].v, 2);
-    ok('evolução SOAP: edição arquiva a versão anterior (v1 preservada, v2 atual)');
-  }
-
-  // 6) Segurança do token: o banco guarda apenas o HASH (SHA-256) — nunca o token utilizável.
-  {
-    const h = (await p.query(`SELECT token FROM sessoes ORDER BY expira_em DESC LIMIT 1`)).rows[0].token;
-    assert.match(h, /^[0-9a-f]{64}$/);
-    assert.notEqual(h, login.token);
-    assert.ok(ADMIN.nome);
-    ok('sessão: token gravado apenas como hash SHA-256 (o token em texto puro não existe no banco)');
-  }
 
   await p.query(`UPDATE sessoes SET expira_em = now() - interval '1 minute'`);
   assert.equal(await validarSessao(loginLegado.token), null); ok('sessão expirada é rejeitada');

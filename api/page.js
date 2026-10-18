@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { validarSessao } = require('../lib/auth');
 const { ehPerfilNIR, ehPerfilAdministrativo, ehPerfilAdministrador } = require('../lib/regras');
-const { tokenDoCookie } = require('../lib/util');
+const SEC = require('../lib/http-security');
 const shell = require('../lib/shell');
 
 const VIEWS = path.join(process.cwd(), 'views');
@@ -29,7 +29,11 @@ function render(nome, vars, titulo, ctx) {
     html = html.replace('<!--@rail-->', () => shell.rail({ ativo: ATIVO[nome], token: vars.token, adm: ctx.adm, nir: ctx.nir, admin: ctx.admin, setor: vars.setorParam || (ctx.nir ? 'UTIN 1' : ctx.setor), nome: vars.nomeUsuario }));
     html = html.replace('<!--@useractions-->', () => shell.userActions({ nome: vars.nomeUsuario, perfil: vars.perfilUsuario, setor: ctx.nir ? '' : ctx.setor }));
   }
+  // Valores dentro de scripts exigem escape JavaScript, não entidades HTML.
+  html = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, bloco => bloco.replace(/<\?!=\s*(\w+)\s*\?>/g,
+    (_, k) => JSON.stringify(String(vars[k] == null ? '' : vars[k])).slice(1, -1).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026').replace(/'/g, '\\u0027').replace(/`/g, '\\u0060').replace(/\$/g, '\\u0024')));
   html = html.replace(/<\?!=\s*(\w+)\s*\?>/g, (_, k) => esc(vars[k]));
+  html = html.replace('</head>', `<meta name="natus-csrf" content="${esc(vars.csrf || '')}"></head>`);
   if (titulo) html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${esc(titulo)}</title>`);
   return html;
 }
@@ -48,14 +52,18 @@ module.exports = async function handler(req, res) {
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  res.setHeader('Referrer-Policy', 'same-origin');
+  res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Content-Security-Policy', CSP_APP);
   try {
     const q = req.query || {};
-    const view = String(q.view || '');
-    // Segurança: o token NÃO trafega mais na URL (links antigos com ?token= são IGNORADOS). A sessão
-    // vive exclusivamente no cookie HttpOnly.
-    const token = tokenDoCookie(req.headers.cookie);
+    // Links antigos não autenticam; remove o segredo da barra de endereço.
+    if (Object.prototype.hasOwnProperty.call(q, 'token')) {
+      const limpa = new URLSearchParams();
+      for (const k of ['view','setor','id']) if (typeof q[k] === 'string') limpa.set(k,q[k]);
+      res.setHeader('Location', '/?' + limpa.toString());
+      return res.status(303).send('');
+    }
+    const view = String(q.view || ''), token = SEC.lerToken(req);
     const sessao = token ? await validarSessao(token) : null;
     const appUrl = '/';
 
@@ -66,7 +74,7 @@ module.exports = async function handler(req, res) {
       res.setHeader('X-Frame-Options', 'ALLOWALL');
       return res.send(render('chamada', {
         appUrl,
-        token: '',
+        token: '', csrf: sessao ? SEC.csrfToken(token) : '',
         autenticado: sessao ? '1' : '',
         nomeOperador: sessao ? sessao.nome : '',
         setorUsuario: sessao ? (sessao.setor || '') : ''
@@ -74,8 +82,7 @@ module.exports = async function handler(req, res) {
     }
     if (!sessao) return res.status(200).send(render('login', { appUrl }));
 
-    // Com a sessão por cookie HttpOnly, os links internos NÃO propagam token algum na URL.
-    const base = { token: '', appUrl, nomeUsuario: sessao.nome, perfilUsuario: sessao.perfil, setorUsuario: sessao.setor || '' };
+    const base = { token: '', csrf: SEC.csrfToken(token), cacheScope: SEC.csrfToken(token).slice(0, 24), appUrl, nomeUsuario: sessao.nome, perfilUsuario: sessao.perfil, setorUsuario: sessao.setor || '' };
     const adm = ehPerfilAdministrativo(sessao.perfil), nir = ehPerfilNIR(sessao.perfil);
     const admin = ehPerfilAdministrador(sessao.perfil) || sessao.administrador === true;   // FASE 3: gestão de usuários
     const setorDe = padrao => (nir ? (String(q.setor || padrao).trim() || padrao) : sessao.setor);

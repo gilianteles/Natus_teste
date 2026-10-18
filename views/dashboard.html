@@ -250,16 +250,16 @@
       const hoje = new Date();
 
       const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-      selectMes.innerHTML = meses.map((m, i) => `<option value="${i+1}" ${i === hoje.getMonth() ? 'selected' : ''}>${m}</option>`).join('');
+      selectMes.innerHTML = meses.map((m, i) => `<option value="${NatusEscape.html(i+1)}" ${NatusEscape.html(i === hoje.getMonth() ? 'selected' : '')}>${NatusEscape.html(m)}</option>`).join('');
       
       const anoAtual = hoje.getFullYear();
-      selectAno.innerHTML = `<option value="${anoAtual}" selected>${anoAtual}</option><option value="${anoAtual-1}">${anoAtual-1}</option>`;
+      selectAno.innerHTML = `<option value="${NatusEscape.html(anoAtual)}" selected>${NatusEscape.html(anoAtual)}</option><option value="${NatusEscape.html(anoAtual-1)}">${NatusEscape.html(anoAtual-1)}</option>`;
     }
 
     function carregarSetores() {
       google.script.run.withSuccessHandler(setores => {
         const select = document.getElementById('filtroSetor');
-        const options = setores.map(s => `<option value="${esc(s.Nome_Setor)}" ${s.Nome_Setor === setorAtual ? 'selected' : ''}>${esc(rotuloSetor(s.Nome_Setor))}</option>`).join('');
+        const options = setores.map(s => `<option value="${NatusEscape.html(s.Nome_Setor)}" ${NatusEscape.html(s.Nome_Setor === setorAtual ? 'selected' : '')}>${NatusEscape.html(rotuloSetor(s.Nome_Setor))}</option>`).join('');
         select.innerHTML = options;
         document.getElementById('headerSetor').innerHTML = options;
         document.getElementById('headerSetor').value = setorAtual;
@@ -400,7 +400,7 @@
       const pesoContainer = document.getElementById('pesoFaixasContainer');
       pesoContainer.innerHTML = Object.keys(data.kpis.peso || {}).map(chave => `
         <div class="d-flex justify-content-between small">
-          <span>${rotuloFaixaPeso(chave)}</span><strong>${data.kpis.peso[chave]}</strong>
+          <span>${NatusEscape.html(rotuloFaixaPeso(chave))}</span><strong>${NatusEscape.html(data.kpis.peso[chave])}</strong>
         </div>
       `).join('');
 

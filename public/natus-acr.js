@@ -219,12 +219,12 @@
       return '<tr>' +
         '<td><div class="fw-semibold">' + esc(a.nome) + '</div><div class="small text-muted">' + esc(a.dataHoraEntrada) + ' · espera ' + espera + '</div>' + destino + '</td>' +
         '<td>' + riscoPill(a.risco) + '</td>' +
-        '<td><select class="form-select form-select-sm" onchange="acrAtualizarStatus(\'' + a.idAtendimento + '\', this)">' + opcoesStatus(a.status) + '</select></td>' +
+        '<td><select class="form-select form-select-sm" onchange="acrAtualizarStatus(\'' + NatusEscape.js(a.idAtendimento) + '\', this)">' + opcoesStatus(a.status) + '</select></td>' +
         '<td class="text-end text-nowrap">' +
           ((a.status === 'Aguardando' || a.status === 'Em Atendimento')
-            ? '<button class="btn btn-sm btn-natus me-1" title="Chamar para atendimento (aparece na TV)" onclick="acrChamar(\'' + a.idAtendimento + '\')"><i class="bi bi-megaphone"></i></button>'
+            ? '<button class="btn btn-sm btn-natus me-1" title="Chamar para atendimento (aparece na TV)" onclick="acrChamar(\'' + NatusEscape.js(a.idAtendimento) + '\')"><i class="bi bi-megaphone"></i></button>'
             : '') +
-          '<button class="btn btn-sm btn-light" title="Ver detalhes" onclick="acrDetalhes(\'' + a.idAtendimento + '\')"><i class="bi bi-eye"></i></button></td>' +
+          '<button class="btn btn-sm btn-light" title="Ver detalhes" onclick="acrDetalhes(\'' + NatusEscape.js(a.idAtendimento) + '\')"><i class="bi bi-eye"></i></button></td>' +
         '</tr>';
     }).join('');
     window.__acrFila = lista;

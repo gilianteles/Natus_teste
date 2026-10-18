@@ -193,13 +193,13 @@
 
       statusEl.textContent = `${pacientes.length} paciente(s) encontrado(s).`;
       listaEl.innerHTML = pacientes.map(p => `
-        <div class="card paciente-card shadow-sm border-0 p-2" onclick="selecionarPaciente('${esc(p.idPaciente)}')">
+        <div class="card paciente-card shadow-sm border-0 p-2" onclick="selecionarPaciente('${NatusEscape.js(p.idPaciente)}')">
           <div class="d-flex justify-content-between align-items-center">
             <div>
-              <strong>${esc(p.nome)}</strong>
-              <div class="small text-muted">${p.sexo === 'F' ? 'Feminino' : 'Masculino'} · Nasc: ${esc(p.dataNascimento || '-')}</div>
+              <strong>${NatusEscape.html(p.nome)}</strong>
+              <div class="small text-muted">${NatusEscape.html(p.sexo === 'F' ? 'Feminino' : 'Masculino')} · Nasc: ${NatusEscape.html(p.dataNascimento || '-')}</div>
             </div>
-            <span class="badge bg-secondary">${esc(p.totalInternacoes)} internação(ões)</span>
+            <span class="badge bg-secondary">${NatusEscape.html(p.totalInternacoes)} internação(ões)</span>
           </div>
         </div>
       `).join('');
@@ -247,29 +247,29 @@
       timelineContainer.innerHTML = dados.internacoes.map(i => {
         const situacao = iconePorTipoSaida(i.statusInternacao === 'Ativo' ? '' : i.tipoSaida);
         const pesoSaidaHtml = i.pesoSaidaGramas !== '' && i.pesoSaidaGramas !== null && i.pesoSaidaGramas !== undefined
-          ? `<li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Peso na Saída:</span><strong>${esc(i.pesoSaidaGramas)}g</strong></li>`
+          ? `<li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Peso na Saída:</span><strong>${NatusEscape.html(i.pesoSaidaGramas)}g</strong></li>`
           : '';
 
         return `
-          <div class="timeline-item ${situacao.classe}">
+          <div class="timeline-item ${NatusEscape.html(situacao.classe)}">
             <div class="timeline-dot"></div>
             <div class="card shadow-sm border-0 p-3">
               <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-2">
-                <h6 class="fw-bold mb-0"><i class="bi ${situacao.icone} me-1"></i> ${esc(i.setor)} · ${esc(i.leito)}</h6>
-                <span class="badge ${i.statusInternacao === 'Ativo' ? 'bg-info text-dark' : 'bg-secondary'}">${esc(i.statusInternacao)}</span>
+                <h6 class="fw-bold mb-0"><i class="bi ${NatusEscape.html(situacao.icone)} me-1"></i> ${NatusEscape.html(i.setor)} · ${NatusEscape.html(i.leito)}</h6>
+                <span class="badge ${NatusEscape.html(i.statusInternacao === 'Ativo' ? 'bg-info text-dark' : 'bg-secondary')}">${NatusEscape.html(i.statusInternacao)}</span>
               </div>
               <ul class="list-group list-group-flush small">
-                <li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Entrada:</span><strong>${esc(i.dataHoraEntrada || '-')}</strong></li>
-                <li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Procedência:</span><strong>${esc(i.procedencia || '-')}</strong></li>
-                <li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Tipo de Parto:</span><strong>${esc(i.tipoParto || '-')}</strong></li>
-                <li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Peso ao Nascer:</span><strong>${esc(i.pesoNascer || '-')}</strong></li>
+                <li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Entrada:</span><strong>${NatusEscape.html(i.dataHoraEntrada || '-')}</strong></li>
+                <li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Procedência:</span><strong>${NatusEscape.html(i.procedencia || '-')}</strong></li>
+                <li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Tipo de Parto:</span><strong>${NatusEscape.html(i.tipoParto || '-')}</strong></li>
+                <li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Peso ao Nascer:</span><strong>${NatusEscape.html(i.pesoNascer || '-')}</strong></li>
                 ${i.tipoSaida ? `
-                <li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Tipo de Saída:</span><strong>${esc(i.tipoSaida)}</strong></li>
-                <li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Destino:</span><strong>${esc(i.destinoSaida || '-')}</strong></li>
-                <li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Data/Hora da Saída:</span><strong>${esc(i.dataHoraSaida || '-')}</strong></li>
+                <li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Tipo de Saída:</span><strong>${NatusEscape.html(i.tipoSaida)}</strong></li>
+                <li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Destino:</span><strong>${NatusEscape.html(i.destinoSaida || '-')}</strong></li>
+                <li class="list-group-item bg-transparent px-0 py-1 d-flex justify-content-between"><span class="text-muted">Data/Hora da Saída:</span><strong>${NatusEscape.html(i.dataHoraSaida || '-')}</strong></li>
                 ${pesoSaidaHtml}
                 ` : ''}
-                ${i.observacaoSaida ? `<li class="list-group-item bg-transparent px-0 py-1"><span class="text-muted">Observação:</span> ${esc(i.observacaoSaida)}</li>` : ''}
+                ${i.observacaoSaida ? `<li class="list-group-item bg-transparent px-0 py-1"><span class="text-muted">Observação:</span> ${NatusEscape.html(i.observacaoSaida)}</li>` : ''}
               </ul>
             </div>
           </div>
@@ -286,7 +286,7 @@ function natusGo(view){
   window.top.location.href=`${appUrl}?${params.toString()}`;
 }
 function natusSair(){
-  google.script.run.withSuccessHandler(()=>window.top.location.href=appUrl).encerrarSessao();
+  google.script.run.withSuccessHandler(()=>window.top.location.href=appUrl).encerrarSessao(token);
 }
 </script>
 

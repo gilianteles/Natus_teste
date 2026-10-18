@@ -1,7 +1,8 @@
 require('../../lib/tz');
 const { FUNCOES, PUBLICAS, mensagemSegura } = require('../../lib/rpc');
 const { validarSessao, SESSAO_HORAS } = require('../../lib/auth');
-const { jsonSeguro, tokenDoCookie, cookieSessao, cookieLimparSessao } = require('../../lib/util');
+const { jsonSeguro } = require('../../lib/util');
+const SEC = require('../../lib/http-security');
 
 module.exports = async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
@@ -16,21 +17,17 @@ module.exports = async function handler(req, res) {
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     const args = Array.isArray(body.args) ? body.args : [];
-    const auth = String(req.headers.authorization || '');
-    let token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-    if (!token) token = tokenDoCookie(req.headers.cookie);
+    const token = SEC.lerToken(req);
+    if (nome !== 'obterPainelChamadas' && !SEC.origemValida(req)) return enviar(403, { ok:false, error:'Origem da solicitação inválida.' });
+    if (!PUBLICAS.has(nome) && !SEC.csrfValido(req, token)) return enviar(403, { ok:false, error:'Atualize a página e tente novamente.' });
     const sessao = PUBLICAS.has(nome) ? null : await validarSessao(token);
     if (!PUBLICAS.has(nome) && !sessao) return enviar(401, { ok: false, error: 'Sessão inválida ou expirada. Faça login novamente.' });
     // encerrarSessao recebe o token do próprio cabeçalho/cookie
     const a = nome === 'encerrarSessao' ? [token] : args;
-    let data = await fn({ sessao, token }, ...a);
-    // Segurança: ao autenticar, o token passa a viver SOMENTE no cookie HttpOnly (SameSite=Lax) e
-    // NÃO é devolvido no corpo da resposta. Ao sair, o cookie é limpo.
-    if (nome === 'autenticar' && data && data.token) {
-      res.setHeader('Set-Cookie', cookieSessao(data.token, Number(SESSAO_HORAS) * 3600, secure));
-      if (typeof data === 'object') { data = Object.assign({}, data); delete data.token; }
-    }
-    if (nome === 'encerrarSessao') res.setHeader('Set-Cookie', cookieLimparSessao(secure));
+    const data = await fn({ sessao, token }, ...a);
+    // Segurança: ao autenticar, o token passa a viver em cookie HttpOnly (SomeSite=Lax); ao sair, é limpo.
+    if (nome === 'autenticar' && data && data.token) { SEC.definirCookie(res, data.token, req); delete data.token; data.success = true; }
+    if (nome === 'encerrarSessao') SEC.definirCookie(res, '', req);
     return enviar(200, { ok: true, data: data === undefined ? null : data });
   } catch (e) {
     const { status, msg } = mensagemSegura(e);

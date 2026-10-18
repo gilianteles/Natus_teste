@@ -22,7 +22,7 @@ console.log('OK: botão após sucesso/segunda troca/erro; submit por Enter; bloq
 const rpc=fs.readFileSync(path.join(root,'public/natus-rpc.js'),'utf8');
 async function test(mode,name='trocarLeito'){
  let timer,cleared=0,calls=0;const window={top:{location:{}}};
- vm.runInNewContext(rpc,{window,location:{search:''},URLSearchParams,AbortController,console,
+ vm.runInNewContext(rpc,{window,document:{querySelector:()=>({content:'csrf-teste'})},location:{search:''},URLSearchParams,AbortController,console,
  setTimeout(f,ms){assert.equal(ms,35000);timer=f;return 1;},clearTimeout(){cleared++;},
  fetch:async(url,opts)=>{calls++;
   const pending=()=>new Promise((res,rej)=>opts.signal.addEventListener('abort',()=>rej(new Error('abort'))));

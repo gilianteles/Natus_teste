@@ -1,11 +1,4 @@
 /* Camada de compatibilidade: reproduz a API google.script.run do Apps Script sobre fetch (/api/rpc/<função>). */
-/* Utilitário global de escape de HTML — usado por todas as telas antes de inserir dados em innerHTML
-   (proteção contra XSS). Implementação idêntica à de lib/util.js (escaparHtml). */
-window.esc = function (v) {
-  return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
-    return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
-  });
-};
 (function () {
   async function chamar(nome, args) {
     // Limite restrito à troca de leito; não muda os demais RPCs.
@@ -16,8 +9,8 @@ window.esc = function (v) {
       try {
         resp = await fetch('/api/rpc/' + encodeURIComponent(nome), {
           method: 'POST',
-          credentials: 'same-origin',   // a sessão vai em cookie HttpOnly; o token NUNCA na URL/cabeçalho
-          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'X-Natus-Request': '1', 'X-Natus-CSRF': (document.querySelector('meta[name="natus-csrf"]') || {}).content || '' },
           body: JSON.stringify({ args: args }),
           ...(controle ? { signal: controle.signal } : {})
         });

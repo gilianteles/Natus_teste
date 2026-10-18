@@ -17,8 +17,7 @@ module.exports = async function handler(req, res) {
   try {
     const q = req.query || {};
     const body = typeof req.body === 'string' ? (req.body ? JSON.parse(req.body) : {}) : (req.body || {});
-    const auth = String(req.headers.authorization || '');
-    const token = (auth.startsWith('Bearer ') ? auth.slice(7).trim() : '') || tokenDoCookie(req.headers.cookie) || String(q.token || '');
+    const token = tokenDoCookie(req.headers.cookie);
     const sessao = await validarSessao(token);
     if (!sessao) return send(401, { ok: false, error: 'Sessão inválida ou expirada. Faça login novamente.' });
     const cpf = q.cpf || body.cpf;

@@ -376,10 +376,10 @@
       const hoje = new Date();
 
       const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-      selectMes.innerHTML = meses.map((m, i) => `<option value="${i+1}" ${i === hoje.getMonth() ? 'selected' : ''}>${m}</option>`).join('');
+      selectMes.innerHTML = meses.map((m, i) => `<option value="${NatusEscape.html(i+1)}" ${NatusEscape.html(i === hoje.getMonth() ? 'selected' : '')}>${NatusEscape.html(m)}</option>`).join('');
 
       const anoAtual = hoje.getFullYear();
-      selectAno.innerHTML = `<option value="${anoAtual}" selected>${anoAtual}</option><option value="${anoAtual-1}">${anoAtual-1}</option>`;
+      selectAno.innerHTML = `<option value="${NatusEscape.html(anoAtual)}" selected>${NatusEscape.html(anoAtual)}</option><option value="${NatusEscape.html(anoAtual-1)}">${NatusEscape.html(anoAtual-1)}</option>`;
 
       // Relatório: período padrão = mês corrente até hoje.
       const iso = d => d.toISOString().substring(0, 10);
@@ -390,11 +390,11 @@
     function carregarSetores() {
       google.script.run.withSuccessHandler(setores => {
         const opcoes = ['<option value="Todos os Setores">Todos os Setores</option>']
-          .concat(setores.map(s => `<option value="${esc(s.Nome_Setor)}">${esc(rotuloSetor(s.Nome_Setor))}</option>`));
+          .concat(setores.map(s => `<option value="${NatusEscape.html(s.Nome_Setor)}">${NatusEscape.html(rotuloSetor(s.Nome_Setor))}</option>`));
         document.getElementById('filtroSetor').innerHTML = opcoes.join('');
 
         const opcoesRel = ['<option value="Todos os Setores">Todos os Setores</option>']
-          .concat(setores.map(s => `<option value="${esc(s.Nome_Setor)}">${esc(rotuloSetor(s.Nome_Setor))}</option>`));
+          .concat(setores.map(s => `<option value="${NatusEscape.html(s.Nome_Setor)}">${NatusEscape.html(rotuloSetor(s.Nome_Setor))}</option>`));
         document.getElementById('relSetor').innerHTML = opcoesRel.join('');
       }).obterSetores();
     }
@@ -539,7 +539,7 @@
       const pesoContainer = document.getElementById('pesoFaixasContainer');
       pesoContainer.innerHTML = Object.keys(data.kpis.peso || {}).map(chave => `
         <div class="d-flex justify-content-between small">
-          <span>${rotuloFaixaPeso(chave)}</span><strong>${data.kpis.peso[chave]}</strong>
+          <span>${NatusEscape.html(rotuloFaixaPeso(chave))}</span><strong>${NatusEscape.html(data.kpis.peso[chave])}</strong>
         </div>
       `).join('');
 
@@ -549,12 +549,12 @@
         blocoPorSetor.classList.remove('d-none');
         document.getElementById('tbodyPorSetor').innerHTML = data.porSetor.map(s => `
           <tr>
-            <td class="fw-semibold">${esc(rotuloSetor(s.setor))}${s.ehUEN ? ' <span class="badge badge-uen">Leito Extra CCO Neonatal</span>' : ''}</td>
-            <td>${s.totalLeitos}</td>
-            <td>${s.ehUEN ? '—' : s.taxaOcupacaoMensal + '%'}</td>
-            <td>${s.admissoes}</td>
-            <td>${s.altas}</td>
-            <td>${s.obitos}</td>
+            <td class="fw-semibold">${NatusEscape.html(rotuloSetor(s.setor))}${s.ehUEN ? ' <span class="badge badge-uen">Leito Extra CCO Neonatal</span>' : ''}</td>
+            <td>${NatusEscape.html(s.totalLeitos)}</td>
+            <td>${NatusEscape.html(s.ehUEN ? '—' : s.taxaOcupacaoMensal + '%')}</td>
+            <td>${NatusEscape.html(s.admissoes)}</td>
+            <td>${NatusEscape.html(s.altas)}</td>
+            <td>${NatusEscape.html(s.obitos)}</td>
           </tr>`).join('');
       } else {
         blocoPorSetor.classList.add('d-none');
@@ -678,7 +678,7 @@
       google.script.run
         .withSuccessHandler(data => { ultimoRelatorio = data; renderizarResultadoRelatorio(data); document.getElementById('btnImprimirRelatorio').disabled = false; })
         .withFailureHandler(err => {
-          document.getElementById('resultadoRelatorio').innerHTML = `<div class="alert alert-danger">${esc((err && err.message) || 'Não foi possível gerar o relatório.')}</div>`;
+          document.getElementById('resultadoRelatorio').innerHTML = `<div class="alert alert-danger">${NatusEscape.html((err && err.message) || 'Não foi possível gerar o relatório.')}</div>`;
         })
         .gerarRelatorioGerencial(payload);
     }
@@ -687,8 +687,8 @@
       const cab = `
         <div class="mb-3">
           <div class="text-uppercase small text-muted">Período</div>
-          <div class="fw-bold fs-5">${esc(data.dataInicial)} a ${esc(data.dataFinal)}</div>
-          <div class="text-uppercase small text-muted mt-1">${esc(data.setor)}</div>
+          <div class="fw-bold fs-5">${NatusEscape.html(data.dataInicial)} a ${NatusEscape.html(data.dataFinal)}</div>
+          <div class="text-uppercase small text-muted mt-1">${NatusEscape.html(data.setor)}</div>
         </div>`;
 
       let corpo = '';
@@ -710,7 +710,7 @@
             <table class="table table-sm tabela-setores align-middle">
               <thead><tr><th>Setor</th><th>Adm.</th><th>Altas</th><th>Óbitos</th><th>Transf.</th><th>Paciente-dia</th><th>Média/dia</th><th>Pico</th><th>Ocupação física</th></tr></thead>
               <tbody>
-                ${data.linhas.map(l => `<tr><td class="fw-semibold">${esc(l.setor)}</td><td>${esc(l.admissoes)}</td><td>${esc(l.altas)}</td><td>${esc(l.obitos)}</td><td>${esc(l.transferencias)}</td><td>${esc(l.pacienteDia)}</td><td>${esc(l.mediaDia)}</td><td>${esc(l.pico)}</td><td>${esc(l.ocupacaoFisica)}</td></tr>`).join('')}
+                ${data.linhas.map(l => `<tr><td class="fw-semibold">${NatusEscape.html(l.setor)}</td><td>${NatusEscape.html(l.admissoes)}</td><td>${NatusEscape.html(l.altas)}</td><td>${NatusEscape.html(l.obitos)}</td><td>${NatusEscape.html(l.transferencias)}</td><td>${NatusEscape.html(l.pacienteDia)}</td><td>${NatusEscape.html(l.mediaDia)}</td><td>${NatusEscape.html(l.pico)}</td><td>${NatusEscape.html(l.ocupacaoFisica)}</td></tr>`).join('')}
               </tbody>
             </table>
           </div>`;
@@ -720,7 +720,7 @@
           <div class="table-responsive">
             <table class="table table-sm tabela-setores align-middle">
               <thead><tr><th>Procedência</th><th>Quantidade</th></tr></thead>
-              <tbody>${data.linhas.map(l => `<tr><td>${esc(l.procedencia)}</td><td>${esc(l.quantidade)}</td></tr>`).join('') || '<tr><td colspan="2" class="text-muted text-center">Nenhuma admissão no período.</td></tr>'}</tbody>
+              <tbody>${data.linhas.map(l => `<tr><td>${NatusEscape.html(l.procedencia)}</td><td>${NatusEscape.html(l.quantidade)}</td></tr>`).join('') || '<tr><td colspan="2" class="text-muted text-center">Nenhuma admissão no período.</td></tr>'}</tbody>
             </table>
           </div>`;
       } else if (data.tipo === 'lista') {
@@ -730,8 +730,8 @@
           <div class="mb-3">${kpiMini('TOTAL', data.linhas.length)}</div>
           <div class="table-responsive">
             <table class="table table-sm tabela-setores align-middle">
-              <thead><tr><th>Nome</th><th>Setor</th><th>${titulo}</th><th>${colExtra}</th></tr></thead>
-              <tbody>${data.linhas.map(l => `<tr><td>${esc(l.nome)}</td><td>${esc(l.setor)}</td><td>${esc(l.entrada || l.data)}</td><td>${l.status ? (esc(l.status) + (l.procedencia ? ' · ' + esc(l.procedencia) : '')) : esc(l.destino || '-')}</td></tr>`).join('') || `<tr><td colspan="4" class="text-muted text-center">Nenhum registro no período.</td></tr>`}</tbody>
+              <thead><tr><th>Nome</th><th>Setor</th><th>${NatusEscape.html(titulo)}</th><th>${NatusEscape.html(colExtra)}</th></tr></thead>
+              <tbody>${data.linhas.map(l => `<tr><td>${NatusEscape.html(l.nome)}</td><td>${NatusEscape.html(l.setor)}</td><td>${NatusEscape.html(l.entrada || l.data)}</td><td>${NatusEscape.html(l.status ? (l.status + (l.procedencia ? ' · ' + l.procedencia : '')) : (l.destino || '-'))}</td></tr>`).join('') || `<tr><td colspan="4" class="text-muted text-center">Nenhum registro no período.</td></tr>`}</tbody>
             </table>
           </div>`;
       }
@@ -740,7 +740,7 @@
     }
 
     function kpiMini(label, valor) {
-      return `<div class="col-md-3"><div class="card kpi-clean p-3 h-100" style="--accent:#0FA394;"><small>${label}</small><h4 class="fw-bold mb-0">${valor}</h4></div></div>`;
+      return `<div class="col-md-3"><div class="card kpi-clean p-3 h-100" style="--accent:#0FA394;"><small>${NatusEscape.html(label)}</small><h4 class="fw-bold mb-0">${NatusEscape.html(valor)}</h4></div></div>`;
     }
 
     function imprimirRelatorio() {
