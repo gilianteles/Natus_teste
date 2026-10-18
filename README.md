@@ -1,3 +1,5 @@
+> Correção de carregamento: leia primeiro `CORRECAO_CARREGAMENTO_LEITOS.md`. A migração foi corrigida para criar os pré-requisitos de auditoria ausentes.
+
 > Atualização de 17/10/2026: consulte `CORRECOES_17-10-2026.md` antes da implantação. A migração SQL incluída deve ser aplicada antes de publicar esta versão.
 
 # Natus — Gestão Inteligente de Leitos

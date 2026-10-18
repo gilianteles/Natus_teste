@@ -13,7 +13,21 @@ async function admit(setor,leito,tipo,nome,data='2026-09-01',hora='08:00'){retur
 async function move(id,tipo,destino,leito,data,hora='10:00',tp=''){return O.registrarMovimentacao(ctx,{idInternacao:id,tipoMovimento:tipo,destino,leitoDestinoId:leito,data,hora,tipoPaciente:tp});}
 async function main(){
  await db.exec(fs.readFileSync(path.join(__dirname,'../db/schema.sql'),'utf8'));
- const migration=fs.readFileSync(path.join(__dirname,'../db/migrations/20261017_alcon_seguranca.sql'),'utf8');await db.exec(migration);await db.exec(migration);
+ const migration=fs.readFileSync(path.join(__dirname,'../db/migrations/20261017_alcon_seguranca.sql'),'utf8');
+ // Reproduz upgrade a partir de banco que ainda não contém a auditoria.
+ await q('DROP TABLE trocas_leito');
+ await q("INSERT INTO setores(id_setor,nome_setor) VALUES('UTIN 1','UTIN 1'),('ALCON 1','ALCON 1')");
+ await bed('LEGADO','UTIN 1'); await bed('LEGADO-ALCON','ALCON 1');
+ const P=require('../lib/painel');
+ let legado=await P.getPainelOperacionalData(ctx,'UTIN 1');
+ assert.equal(legado.leitos.length,1);assert.equal(legado.avisos.length,1);
+ legado=await P.getPainelOperacionalData(ctx,'ALCON 1');
+ assert.equal(legado.leitos.length,1);assert.equal(legado.resumo.internacoesHoje,null);
+ await assert.rejects(report('ALCON 1','2026-09-01','2026-09-02'),/migração/);
+ await db.exec(migration);await db.exec(migration);
+ legado=await P.getPainelOperacionalData(ctx,'ALCON 1');assert.equal(legado.avisos.length,0);assert.equal(legado.resumo.internacoesHoje,0);
+ await q("DELETE FROM leitos WHERE id_leito IN ('LEGADO','LEGADO-ALCON')");await q("DELETE FROM setores WHERE id_setor IN ('UTIN 1','ALCON 1')");
+ console.log('OK: banco legado sem auditoria carrega leitos; KPI dependente indisponível sinalizado; migração completa/repetível restaura histórico.');
  for(const s of ['ALCON 1','ALCON 2','UTI MATERNA','UTIN 1','CCO','PPP'])await q('INSERT INTO setores(id_setor,nome_setor) VALUES($1,$1)',[s]);
  for(const [id,s] of [['A1','ALCON 1'],['A2','ALCON 1'],['B1','ALCON 2'],['B2','ALCON 2'],['M1','UTI MATERNA'],['M2','UTI MATERNA'],['N1','UTIN 1'],['C1','CCO']])await bed(id,s);
  const m=await admit('UTI MATERNA','M1','','Mãe teste');const tr=await move(m.idInternacao,'Transferencia','ALCON 1','A1','2026-09-01','09:00');

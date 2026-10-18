@@ -22,6 +22,7 @@ const EXTRA = { painel: 'natus-painel.js', acr: 'natus-acr.js', kanban: 'natus-k
 /* Placeholders dos views: <!--@head-->, <!--@rail-->, <!--@useractions-->; e as variáveis <?!= nome ?>. */
 function render(nome, vars, titulo, ctx) {
   let html = carregar(nome);
+  html = html.replace(/src="\/natus-rpc\.js"/g, 'src="/natus-rpc.js?v=20261018-leitos"');
   const arquivo = EXTRA[nome];
   const extra = arquivo ? `\n  <script defer src="/${arquivo}?v=${shell.versao(arquivo)}"></script>` : '';
   html = html.replace('<!--@head-->', () => shell.head(extra));

@@ -5,7 +5,7 @@ Base: arquivo `natus(2).zip` enviado em 17/10/2026, incluindo CADSUS e painel de
 ## Aplicação
 
 1. Faça backup do banco e mantenha a versão anterior da aplicação para recuperação.
-2. No SQL Editor do Neon, execute **`db/migrations/20261017_alcon_seguranca.sql`**, que acompanha este pacote. A migração pressupõe o schema da versão enviada, incluindo `trocas_leito` e as colunas de exclusão lógica de `evolucoes_soap`.
+2. No SQL Editor do Neon, execute **`db/migrations/20261017_alcon_seguranca.sql`**, que acompanha este pacote. A migração corrigida também cria `trocas_leito` e as colunas de exclusão lógica de `evolucoes_soap` quando ausentes. Consulte `CORRECAO_CARREGAMENTO_LEITOS.md`.
 3. Publique o código atualizado na Vercel. A migração deve preceder a publicação, pois o código consulta as novas colunas/tabela. Para instalação local nova, `npm run db:migrate` aplica o schema e a migração.
 4. Faça novo login. Sessões antigas com token bruto são invalidadas. Links antigos com `token=` deixam de autenticar e são redirecionados para uma URL limpa.
 5. Valide os cenários abaixo em homologação antes de liberar a atualização aos usuários.

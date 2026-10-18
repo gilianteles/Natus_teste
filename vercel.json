@@ -1,27 +1,72 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["gru1"],
+  "regions": [
+    "gru1"
+  ],
   "functions": {
-    "api/page.js": { "includeFiles": "views/**", "maxDuration": 30 },
-    "api/rpc/[fn].js": { "maxDuration": 30 },
-    "api/cadsus.js": { "maxDuration": 15 },
-    "api/health.js": { "maxDuration": 10 }
+    "api/page.js": {
+      "includeFiles": "views/**",
+      "maxDuration": 30
+    },
+    "api/rpc/[fn].js": {
+      "maxDuration": 30
+    },
+    "api/cadsus.js": {
+      "maxDuration": 15
+    },
+    "api/health.js": {
+      "maxDuration": 10
+    }
   },
   "rewrites": [
-    { "source": "/", "destination": "/api/page" },
-    { "source": "/chamada", "destination": "/api/page?view=chamada" },
-    { "source": "/tv", "destination": "/api/page?view=chamada" }
+    {
+      "source": "/",
+      "destination": "/api/page"
+    },
+    {
+      "source": "/chamada",
+      "destination": "/api/page?view=chamada"
+    },
+    {
+      "source": "/tv",
+      "destination": "/api/page?view=chamada"
+    }
   ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
       ]
     },
-    { "source": "/assets/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] },
-    { "source": "/natus-rpc.js", "headers": [{ "key": "Cache-Control", "value": "public, max-age=300" }] }
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/natus-rpc.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, max-age=0, must-revalidate"
+        }
+      ]
+    }
   ]
 }

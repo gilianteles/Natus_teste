@@ -1,4 +1,21 @@
 BEGIN;
+-- Pré-requisitos da auditoria: compatibilidade com bancos anteriores.
+CREATE TABLE IF NOT EXISTS trocas_leito (
+  id_troca        text PRIMARY KEY,
+  id_internacao   text NOT NULL REFERENCES internacoes(id_internacao) ON DELETE CASCADE,
+  id_paciente     text NOT NULL DEFAULT '',
+  setor_nome      text NOT NULL DEFAULT '',
+  leito_origem    text,
+  numero_origem   text NOT NULL DEFAULT '',
+  leito_destino   text NOT NULL,
+  numero_destino  text NOT NULL DEFAULT '',
+  data_hora       timestamp NOT NULL,
+  registrado_por  text NOT NULL DEFAULT ''
+);
+
+ALTER TABLE evolucoes_soap ADD COLUMN IF NOT EXISTS excluido boolean NOT NULL DEFAULT false;
+ALTER TABLE evolucoes_soap ADD COLUMN IF NOT EXISTS excluido_por text NOT NULL DEFAULT '';
+ALTER TABLE evolucoes_soap ADD COLUMN IF NOT EXISTS excluido_em timestamp;
 ALTER TABLE internacoes ADD COLUMN IF NOT EXISTS encerrada_em timestamp;
 -- Recupera apenas o limite conhecido da continuidade clínica já registrada.
 UPDATE internacoes i SET encerrada_em=(SELECT min(n.data_hora_entrada) FROM internacoes n

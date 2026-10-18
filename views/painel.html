@@ -1062,8 +1062,8 @@
         el.id = 'statusAtualizacaoPainel';
         el.setAttribute('role', 'status');
         el.setAttribute('aria-live', 'polite');
-        const nav = document.querySelector('nav');
-        if (nav) nav.insertAdjacentElement('afterend', el);
+        const cabecalho = document.querySelector('.nt-topbar');
+        if (cabecalho) cabecalho.insertAdjacentElement('afterend', el);
       }
       el.className = 'container-fluid px-4 small mb-2 ' + (erro ? 'text-danger' : 'text-secondary');
       el.textContent = texto || '';
@@ -1096,7 +1096,7 @@
       if (!data || String(data.setorAtual).toUpperCase() !== String(setorPedido).toUpperCase()) return;
       salvarCachePainel(setorPedido, data);
       mostrarPainelAtualizado(data);
-      statusAtualizacaoPainel('');
+      statusAtualizacaoPainel((data.avisos || []).join(' '), !!(data.avisos || []).length);
     }
     function iniciarPainelComCache() {
       painelPendente = null;
@@ -1118,7 +1118,7 @@
         .withFailureHandler(err => {
           if (idPedido !== requisicaoPainel) return;
           console.error(err);
-          statusAtualizacaoPainel('Não foi possível atualizar os leitos. Os dados exibidos podem estar desatualizados. Use Atualizar.', true);
+          statusAtualizacaoPainel('Não foi possível atualizar os leitos. ' + (err && err.message ? err.message : 'Verifique a conexão e tente novamente.') + (globalDataLeitos.length ? ' Os dados exibidos podem estar desatualizados.' : ''), true);
         })
         .getPainelOperacionalData(setorPedido);
     }
@@ -1184,9 +1184,9 @@
       // Atualização dos Indicadores
       document.getElementById('kpi-taxa').innerText = ehUEN ? resumo.ocupados : `${resumo.taxaOcupacaoDiaria}%`;
       document.getElementById('kpi-ocupados').innerText = `${resumo.ocupados}/${resumo.totalLeitos}`;
-      document.getElementById('kpi-internacoes-total').innerText = resumo.internacoesHoje;
-      document.getElementById('kpi-internacoes-internas').innerText = resumo.internacoesInternasHoje;
-      document.getElementById('kpi-internacoes-externas').innerText = resumo.internacoesExternasHoje;
+      document.getElementById('kpi-internacoes-total').innerText = resumo.internacoesHoje == null ? '—' : resumo.internacoesHoje;
+      document.getElementById('kpi-internacoes-internas').innerText = resumo.internacoesInternasHoje == null ? '—' : resumo.internacoesInternasHoje;
+      document.getElementById('kpi-internacoes-externas').innerText = resumo.internacoesExternasHoje == null ? '—' : resumo.internacoesExternasHoje;
       document.getElementById('kpi-altas').innerText = resumo.altasHoje;
       document.getElementById('kpi-obitos').innerText = resumo.obitosHoje;
       const cardEvasoesHoje = document.getElementById('cardEvasoesHoje');

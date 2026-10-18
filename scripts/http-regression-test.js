@@ -22,7 +22,7 @@ module.exports=async function({A,q,ctx}){
  const malicious="</script><img src=x onerror=window.__xss=1>'\\\"";
  const views=['painel','dashboard','dashboardgeral','nir','historico','acr','kanban','prontuario','bi','chamada'];
  for(const view of views){
-  r=await invoke(page,{query:{view,setor:malicious,id:malicious},headers:{cookie}});assert.equal(r.code,200);assert.ok(!r.body.includes(token));assert.ok(!r.body.includes('<?!='));
+  r=await invoke(page,{query:{view,setor:malicious,id:malicious},headers:{cookie}});assert.equal(r.code,200);assert.ok(!r.body.includes(token));assert.ok(!r.body.includes('<?!='));assert.ok(r.body.includes('/natus-rpc.js?v=20261018-leitos'));
   for(const m of r.body.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi))acorn.parse(m[1],{ecmaVersion:'latest'});
   assert.ok(!r.body.includes('<img src=x onerror=window.__xss=1>'));
  }

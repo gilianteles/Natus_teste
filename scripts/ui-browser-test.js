@@ -34,7 +34,18 @@ module.exports=async function({invoke,page,rpc,cookie,q}){
   if(fs.existsSync(file)&&fs.statSync(file).isFile())return route.fulfill({status:200,contentType:file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':'image/png',body:fs.readFileSync(file)});
   return route.fulfill({status:404,body:''});
  });
+ await q('ALTER TABLE internacoes RENAME COLUMN encerrada_em TO encerrada_em_teste');
+ await q('ALTER TABLE trocas_leito RENAME TO trocas_leito_teste');
  await pg.goto('http://natus.test/?view=painel&setor=ALCON%201');
+ await pg.waitForFunction(()=>typeof globalDataLeitos!=='undefined'&&globalDataLeitos.length===3);
+ assert.ok((await pg.locator('#statusAtualizacaoPainel').textContent()).includes('migração'));
+ assert.equal(await pg.locator('.nt-rail #statusAtualizacaoPainel').count(),0);
+ assert.equal(await pg.locator('#kpi-internacoes-total').textContent(),'—');
+ await q('ALTER TABLE internacoes RENAME COLUMN encerrada_em_teste TO encerrada_em');
+ await q('ALTER TABLE trocas_leito_teste RENAME TO trocas_leito');
+ await pg.reload();
+ await pg.waitForFunction(()=>document.getElementById('statusAtualizacaoPainel').hidden);
+
  await pg.waitForFunction(()=>typeof globalDataLeitos!=='undefined'&&globalDataLeitos.length===3, null, {timeout:10000}).catch(async e=>{console.error('Browser diagnóstico',errors,apiErrors, (await pg.locator('body').textContent()).slice(-500));throw e;});
  assert.equal(await pg.evaluate(()=>window.__xss),undefined);
  assert.ok((await pg.locator('body').textContent()).includes(attack));
@@ -51,8 +62,8 @@ module.exports=async function({invoke,page,rpc,cookie,q}){
   await pg.waitForLoadState('networkidle');
   assert.equal(await pg.evaluate(()=>window.__xss),undefined);
  }
- assert.deepEqual(errors,[]);assert.deepEqual(apiErrors,[]);
- console.log('OK: Chromium nas telas principais; XSS exibido como texto; edição Mãe/RN; transferência mostra leito complementar correto; nenhuma exceção JS/API.');
+ assert.deepEqual(errors,[]);assert.deepEqual(apiErrors.filter(e=>!(e.fn.endsWith('/obterEstatisticasDashboard') && e.body.includes('histórico de leitos está pendente'))),[]);
+ console.log('OK: Chromium nas telas principais; XSS exibido como texto; edição Mãe/RN; transferência mostra leito complementar correto; nenhuma exceção JS ou falha inesperada da API; aviso de migração fora da barra lateral.');
  await context.close();
  }finally{await browser.close();}
 };
