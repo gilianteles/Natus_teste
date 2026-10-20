@@ -1,0 +1,479 @@
+[
+  {
+    "key": "B",
+    "label": "CLASSIFICAÇÃO DE ROBSON",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10"
+    ]
+  },
+  {
+    "key": "C",
+    "label": "PROFISSIONAL",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "ENFº OBSTETRA",
+      "MÉDICO"
+    ]
+  },
+  {
+    "key": "F",
+    "label": "IDADE",
+    "scope": "parto",
+    "type": "number",
+    "min": 10,
+    "max": 65
+  },
+  {
+    "key": "G",
+    "label": "Nº GESTAÇÕES",
+    "scope": "parto",
+    "type": "number",
+    "min": 0,
+    "max": 30
+  },
+  {
+    "key": "H",
+    "label": "PARTO NORMAL",
+    "scope": "parto",
+    "type": "number",
+    "min": 0,
+    "max": 30
+  },
+  {
+    "key": "I",
+    "label": "PARTO CESÁREA",
+    "scope": "parto",
+    "type": "number",
+    "min": 0,
+    "max": 30
+  },
+  {
+    "key": "J",
+    "label": "ABORTO",
+    "scope": "parto",
+    "type": "number",
+    "min": 0,
+    "max": 30
+  },
+  {
+    "key": "K",
+    "label": "CONSULTA DE PRÉ-NATAL",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "NÃO FEZ",
+      "1~3",
+      "4~6",
+      "6~"
+    ]
+  },
+  {
+    "key": "L",
+    "label": "IDADE GESTACIONAL",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "≤34 SEM",
+      "35 ~ 37 SEM",
+      ">37 SEM"
+    ]
+  },
+  {
+    "key": "M",
+    "label": "FEZ USO DO PARTOGRAMA?",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "SIM",
+      "NÃO"
+    ]
+  },
+  {
+    "key": "N",
+    "label": "ACOMPANHANTE. QUEM?",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "MARIDO",
+      "GENITORA",
+      "OUTRO"
+    ]
+  },
+  {
+    "key": "O",
+    "label": "PARTO DOMICILIAR?",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "SIM",
+      "NÃO"
+    ]
+  },
+  {
+    "key": "P",
+    "label": "DIETA",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "ZERO",
+      "LIVRE",
+      "LÍQUIDA"
+    ]
+  },
+  {
+    "key": "Q",
+    "label": "VENÓCLISE",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "SIM",
+      "NÃO"
+    ]
+  },
+  {
+    "key": "R",
+    "label": "BOAS PRATICAS",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "SIM",
+      "NÃO"
+    ]
+  },
+  {
+    "key": "S",
+    "label": "AMNIOTOMIA",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "SIM",
+      "NÃO"
+    ]
+  },
+  {
+    "key": "T",
+    "label": "OCITOCINA NO 1º ESTÁGIO",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "SIM",
+      "NÃO"
+    ]
+  },
+  {
+    "key": "U",
+    "label": "OCITOCINA NO 2º ESTÁGIO",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "SIM",
+      "NÃO"
+    ]
+  },
+  {
+    "key": "V",
+    "label": "HPP",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "SIM",
+      "NÃO"
+    ]
+  },
+  {
+    "key": "W",
+    "label": "HORA DO NASCIMENTO RN",
+    "scope": "rn",
+    "type": "time",
+    "required": true
+  },
+  {
+    "key": "X",
+    "label": "Nascido Vivo ou Nascido Morto",
+    "scope": "rn",
+    "type": "select",
+    "options": [
+      "Nascido Vivo",
+      "Nascido Morto"
+    ],
+    "required": true
+  },
+  {
+    "key": "Y",
+    "label": "APGAR NO 1º MIN",
+    "scope": "rn",
+    "type": "number",
+    "min": 0,
+    "max": 10
+  },
+  {
+    "key": "Z",
+    "label": "APGAR NO 5º MIN",
+    "scope": "rn",
+    "type": "number",
+    "min": 0,
+    "max": 10
+  },
+  {
+    "key": "AA",
+    "label": "SEXO",
+    "scope": "rn",
+    "type": "select",
+    "options": [
+      "M",
+      "F",
+      "INDEF."
+    ],
+    "required": true
+  },
+  {
+    "key": "AB",
+    "label": "PESO (em gramas sem ponto)",
+    "scope": "rn",
+    "type": "number",
+    "min": 100,
+    "max": 10000
+  },
+  {
+    "key": "AC",
+    "label": "ESTATURA (cm)",
+    "scope": "rn",
+    "type": "number",
+    "min": 10,
+    "max": 100
+  },
+  {
+    "key": "AD",
+    "label": "PC (cm)",
+    "scope": "rn",
+    "type": "number",
+    "min": 5,
+    "max": 100
+  },
+  {
+    "key": "AE",
+    "label": "PT (cm)",
+    "scope": "rn",
+    "type": "number",
+    "min": 5,
+    "max": 100
+  },
+  {
+    "key": "AF",
+    "label": "PAB (cm)",
+    "scope": "rn",
+    "type": "number",
+    "min": 5,
+    "max": 100
+  },
+  {
+    "key": "AG",
+    "label": "CONTATO PELE A PELE IMEDIATO",
+    "scope": "rn",
+    "type": "select",
+    "options": [
+      "SIM",
+      "NÃO"
+    ]
+  },
+  {
+    "key": "AH",
+    "label": "CLAMP. OPORTUNO DO CORDÃO",
+    "scope": "rn",
+    "type": "select",
+    "options": [
+      "SIM",
+      "NÃO"
+    ]
+  },
+  {
+    "key": "AI",
+    "label": "DEQUITAÇÃO COMPLETA DA PLACENTA",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "SIM",
+      "NÃO"
+    ]
+  },
+  {
+    "key": "AJ",
+    "label": "APÓS MINUTOS",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "1~10",
+      "11~15",
+      "16~20",
+      "21~25",
+      "26~30",
+      ">30"
+    ]
+  },
+  {
+    "key": "AK",
+    "label": "EXTRAÇÃO MANUAL DA PLACENTA",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "SIM",
+      "NÃO"
+    ]
+  },
+  {
+    "key": "AL",
+    "label": "OCITOCINA 3º ESTÁGIO",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "SIM",
+      "NÃO"
+    ]
+  },
+  {
+    "key": "AM",
+    "label": "AMAMENTAÇÃO NA 1º HORA",
+    "scope": "rn",
+    "type": "select",
+    "options": [
+      "SIM",
+      "NÃO"
+    ]
+  },
+  {
+    "key": "AN",
+    "label": "POSIÇÃO SELECIONADA",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "POSIÇÃO LATERALIZADA",
+      "POSIÇÃO SEMI-VERTICALIZADA",
+      "POSIÇÃO GINECOLÓGICA",
+      "QUATRO-APOIOS",
+      "CÓCORAS",
+      "BAQUETA MEIA-LUA",
+      "CHUVEIRO",
+      "ATLETA",
+      "LATERALIZADADA E SEMI-VERTICALIZADA",
+      "EM PÉ",
+      "SEM INFORMAÇÃO"
+    ]
+  },
+  {
+    "key": "AO",
+    "label": "LACERAÇÃO",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "LACERAÇÃO DE 1º  GRAU",
+      "LACERAÇÃO DE 2º  GRAU",
+      "LACERAÇÃO DE 3º  GRAU",
+      "LACERAÇÃO DE 4º  GRAU",
+      "SEM LACERAÇÃO"
+    ]
+  },
+  {
+    "key": "AP",
+    "label": "TEVE HPP?",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "SIM",
+      "NÃO"
+    ]
+  },
+  {
+    "key": "AQ",
+    "label": "EPISIOTOMIA",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "SIM",
+      "NÃO"
+    ]
+  },
+  {
+    "key": "AR",
+    "label": "REANIMAÇÃO NEONATAL",
+    "scope": "rn",
+    "type": "select",
+    "options": [
+      "SIM",
+      "NÃO"
+    ]
+  },
+  {
+    "key": "AS",
+    "label": "DATA DO NASCIMENTO RN",
+    "scope": "rn",
+    "type": "date",
+    "required": true
+  },
+  {
+    "key": "AT",
+    "label": "QUEM ASSISTIU AO PARTO?",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "MÉDICO OBSTETRA",
+      "MÉDICO RESIDENTE",
+      "MÉDICO E RESIDENTE",
+      "ENFERMEIRO OBSTETRA",
+      "ENFERMEIRO RESIDENTE",
+      "ENFERMEIRO E RESIDENTE"
+    ]
+  },
+  {
+    "key": "AU",
+    "label": "PUERPERA PRECISOU SER ENCAMINHADA PARA OUTRO SETOR",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "CCO",
+      "UTI MATERNA",
+      "SALA DE EMERGENCIA",
+      "UGAR",
+      "NÃO SE APLICA"
+    ]
+  },
+  {
+    "key": "AV",
+    "label": "BINÔMIO ENCAMINHADO AO ALCON?",
+    "scope": "parto",
+    "type": "select",
+    "options": [
+      "SIM",
+      "NÃO"
+    ]
+  },
+  {
+    "key": "AW",
+    "label": "TRANSFERIDO EXTERNO",
+    "scope": "parto",
+    "type": "text"
+  },
+  {
+    "key": "AX",
+    "label": "LEITO DE Nº",
+    "scope": "parto",
+    "type": "text"
+  },
+  {
+    "key": "AY",
+    "label": "DATA DE ENCAMINHAMENTO",
+    "scope": "parto",
+    "type": "date"
+  }
+]

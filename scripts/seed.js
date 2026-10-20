@@ -9,7 +9,7 @@ const { SETORES_PADRAO } = require('../lib/regras');
   if (senha.length < 8) throw new Error('Defina ADMIN_SENHA com ao menos 8 caracteres.');
   const leitos = Number(process.env.SEED_LEITOS || 0);
   const p = getPool();
-  const tipos = { 'UTI MATERNA': 'Obstétrico', 'ALCON 1': 'Alojamento Conjunto', 'ALCON 2': 'Alojamento Conjunto' };
+  const tipos = { 'PPP':'Obstétrico', 'CCO':'Obstétrico', 'CPNI':'Obstétrico', 'UTI MATERNA': 'Obstétrico', 'ALCON 1': 'Alojamento Conjunto', 'ALCON 2': 'Alojamento Conjunto' };
   for (const s of [...SETORES_PADRAO, 'UEN']) {
     await p.query(`INSERT INTO setores (id_setor,nome_setor,tipo,capacidade_inicial) VALUES ($1,$2,$3,0) ON CONFLICT (nome_setor) DO NOTHING`,
       [s.replace(/\s+/g, '_'), s, s === 'UEN' ? 'Estabilização Neonatal (Vaga Zero)' : (tipos[s] || 'Neonatal')]);

@@ -1,3 +1,5 @@
+> Atualização de 20/10/2026: consulte [ATUALIZACAO_20-10-2026.md](ATUALIZACAO_20-10-2026.md) para as novas regras e a migração obrigatória de nascimentos.
+
 > Correção de carregamento: leia primeiro `CORRECAO_CARREGAMENTO_LEITOS.md`. A migração foi corrigida para criar os pré-requisitos de auditoria ausentes.
 
 > Atualização de 17/10/2026: consulte `CORRECOES_17-10-2026.md` antes da implantação. A migração SQL incluída deve ser aplicada antes de publicar esta versão.

@@ -11,7 +11,7 @@
     "db:seed": "node scripts/seed.js",
     "db:import": "node scripts/import-sheets.js",
     "dev": "node dev-server.js",
-    "test": "node scripts/review-regression-test.js && node scripts/corrections-test.js",
+    "test": "node scripts/review-regression-test.js && node scripts/corrections-test.js && node scripts/nascimentos-test.js",
     "test:smoke:database": "node scripts/smoke-test.js"
   },
   "dependencies": {

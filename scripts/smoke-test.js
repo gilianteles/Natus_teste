@@ -74,10 +74,10 @@ let n = 0; const ok = m => console.log(`  ✔ ${++n}. ${m}`);
   const al = (await call('getPainelOperacionalData', 'ALCON 1')).leitos[0].ID_Leito;
   await call('registrarInternacao', { setor: 'ALCON 1', leitoId: al, tipoPaciente: 'MAE', nome: 'Mãe Ana', dataNascimento: '1995-01-01', procedencia: 'CCO', data: hoje(), hora: '07:00', tipoProcedimento: 'Cesárea' });
   const rnAdm = await call('registrarInternacao', { setor: 'ALCON 1', leitoId: al, tipoPaciente: 'RN', nome: 'RN Ana', sexo: 'F', dataNascimento: hoje(), procedencia: 'CCO', data: hoje(), hora: '07:05', pesoNascer: '≥2500' });
-  let a1 = await call('getPainelOperacionalData', 'ALCON 1'); assert.equal(a1.resumo.ocupados, 1); assert.equal(a1.internadosAtivos.length, 2); assert.equal(a1.resumo.internacoesHoje, 1); ok('binômio ocupa 1 leito, 2 internados, 1 internação hoje');
+  let a1 = await call('getPainelOperacionalData', 'ALCON 1'); assert.equal(a1.resumo.ocupados, 1); assert.equal(a1.internadosAtivos.length, 2); assert.equal(a1.resumo.internacoesHoje, 2); ok('binômio ocupa 1 leito, 2 internados, 2 internações hoje');
   const maeInt = (await p.query(`SELECT id_internacao FROM internacoes WHERE setor_nome='ALCON 1' AND tipo_paciente='MAE'`)).rows[0].id_internacao;
   const ra = await call('registrarMovimentacaoAtualizarPainel', { idInternacao: maeInt, setorAtual: 'ALCON 1', tipoMovimento: 'Alta', destino: 'Domiciliar', data: hoje(), hora: '16:00' });
-  assert.ok(ra.altaMaeMantemRN); a1 = ra.painel; assert.equal(a1.resumo.ocupados, 1); assert.equal(a1.internadosAtivos.length, 1); assert.equal(a1.internadosAtivos[0].tipoPaciente, 'RN'); ok('alta da Mãe mantém RN com nova internação');
+  assert.ok(ra.altaMaeMantemRN); a1 = ra.painel; assert.equal(a1.resumo.ocupados, 1); assert.equal(a1.internadosAtivos.length, 1); assert.equal(a1.internadosAtivos[0].tipoPaciente, 'RN'); ok('alta da Mãe mantém a internação original do RN');
   const rn2 = await call('registrarMovimentacaoAtualizarPainel', { idInternacao: a1.internadosAtivos[0].idInternacao, setorAtual: 'ALCON 1', tipoMovimento: 'Evasao', data: hoje(), hora: '17:00' });
   assert.equal(rn2.painel.resumo.ocupados, 0); assert.equal(rn2.painel.resumo.evasoesHoje, 1); ok('evasão do RN libera o leito ALCON');
   assert.match(await falha('registrarMovimentacaoAtualizarPainel', { idInternacao: uenInt, setorAtual: 'UEN', tipoMovimento: 'Evasao', data: hoje(), hora: '17:00' }), /não encontrada/);
@@ -301,7 +301,7 @@ let n = 0; const ok = m => console.log(`  ✔ ${++n}. ${m}`);
 
   // Binômio ALCON: a admissão conjunta Mãe+RN conta como UMA internação (não duplica).
   const estAlcon = await call('obterEstatisticasDashboard', 'ALCON 1', mes, ano);
-  assert.equal(estAlcon.kpis.admissoesMes, 1); ok('ALCON: Mãe + RN contam como 1 internação (binômio)');
+  assert.equal(estAlcon.kpis.admissoesMes, 2); ok('ALCON: Mãe + RN contam como 2 internações');
   assert.ok(estAlcon.estatisticas.peso && typeof estAlcon.estatisticas.peso.menor1500 === 'number'); ok('ALCON/neonatal: faixa de peso do RN calculada sem a Mãe no denominador');
 
   await p.query(`UPDATE sessoes SET expira_em = now() - interval '1 minute'`);

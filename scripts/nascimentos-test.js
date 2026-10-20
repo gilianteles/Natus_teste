@@ -1,0 +1,63 @@
+// Testes reais de SQL em PostgreSQL em memória; nenhuma conexão ao banco do hospital.
+require('../lib/tz');
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const {PGlite}=require('@electric-sql/pglite');const db=new PGlite(),parsers={};
+const q=async(sql,args=[])=>{const ps=args.map(v=>v instanceof Date?`${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')} ${String(v.getHours()).padStart(2,'0')}:${String(v.getMinutes()).padStart(2,'0')}:${String(v.getSeconds()).padStart(2,'0')}`:v);const r=await db.query(sql,ps,{parsers});return {...r,rowCount:r.affectedRows===undefined?r.rows.length:r.affectedRows};};
+class Pool{query(...a){return q(...a);}async connect(){return {query:q,release(){}};}on(){}async end(){}}
+require.cache[require.resolve('pg')]={loaded:true,exports:{Pool,types:{setTypeParser:(id,fn)=>parsers[id]=fn}}};process.env.DATABASE_URL='isolated-test-only';
+const O=require('../lib/operacoes'),C=require('../lib/calc'),D=require('../lib/data'),A=require('../lib/auth'),CL=require('../lib/clinica'),Q=require('../lib/qualidade'),CFG=require('../lib/configuracoes');
+const ctx={sessao:{nome:'Teste',perfil:'NIR',setor:'',administrador:true}};
+const report=(s,a,b)=>C.calcularIndicadoresPeriodo(D.criarContexto(),s,a,b),one=async(s,p)=>(await q(s,p)).rows[0];
+async function bed(id,s){await q("INSERT INTO leitos(id_leito,setor_nome,numero_leito,status) VALUES($1,$2,$1,'Livre')",[id,s]);}
+async function admit(setor,leito,tipo,nome,data='2026-09-01',hora='08:00'){return O.registrarInternacao(ctx,{setor,leitoId:leito,tipoPaciente:tipo,nome,dataNascimento:'2026-09-01',sexo:tipo==='MAE'?'F':'M',procedencia:'DOMICILIO',data,hora,tipoParto:'Normal'});}
+async function move(id,tipo,destino,leito,data,hora='10:00',tp=''){return O.registrarMovimentacao(ctx,{idInternacao:id,tipoMovimento:tipo,destino,leitoDestinoId:leito,data,hora,tipoPaciente:tp});}
+const N=require('../lib/nascimentos');
+async function main(){
+ await db.exec(fs.readFileSync(path.join(__dirname,'../db/schema.sql'),'utf8'));
+ for(const f of fs.readdirSync(path.join(__dirname,'../db/migrations')).sort())await db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations',f),'utf8'));
+ await db.exec(fs.readFileSync(path.join(__dirname,'../db/migrations/20261020_nascimentos.sql'),'utf8'));
+ for(const s of ['PPP','CCO','CPNI','ALCON 1','UTIN 1'])await q('INSERT INTO setores(id_setor,nome_setor) VALUES($1,$1) ON CONFLICT DO NOTHING',[s]);
+ for(const [id,s] of [['P','PPP'],['C','CCO'],['CP','CPNI'],['A','ALCON 1'],['A2','ALCON 1'],['N','UTIN 1']])await bed(id,s);
+ const m=await admit('PPP','P','MAE','Mãe fictícia','2026-09-01');
+ const data={idInternacao:m.idInternacao,ordem:1,parto:{F:25,R:'SIM',B:'10'},rn:{AS:'2026-09-01',W:'09:00',X:'Nascido Vivo',AA:'M',AB:2800,Y:8,Z:10}};
+ const n=await N.registrarNascimento(ctx,data);
+ await assert.rejects(N.registrarNascimento(ctx,data),/já foi registrada/);
+ await assert.rejects(N.registrarNascimento(ctx,{...data,ordem:2,rn:{...data.rn,Y:11}}),/Valor inválido/);
+ await assert.rejects(N.registrarNascimento(ctx,{...data,ordem:2,rn:{...data.rn,AS:'2099-01-01'}}),/futuro/);
+ const twin=await N.registrarNascimento(ctx,{...data,ordem:2,rn:{...data.rn,AA:'F'}});
+ assert.equal((await one('SELECT count(*)::int n FROM internacoes')).n,1);
+ let dash=await N.obterDashboardNascimentos(ctx,{setor:'PPP',ano:2026,mes:9});
+ assert.equal(dash.kpis.partos,1);assert.equal(dash.kpis.nascimentos,2);assert.equal(dash.kpis.vivos,2);assert.equal(dash.groups.R.counts.SIM,1);assert.equal(dash.groups.AA.counts.M,1);
+ const restricted={sessao:{nome:'Setor',perfil:'SETOR',setor:'CCO'}};
+ await assert.rejects(N.obterNascimentos(restricted,{idInternacao:m.idInternacao}));
+ await assert.rejects(N.registrarNascimento(restricted,{...data,ordem:3}));
+ await assert.rejects(N.obterDashboardNascimentos(restricted,{setor:'TODOS',ano:2026,mes:9}));
+ const tr=await move(m.idInternacao,'Transferencia','ALCON 1','A','2026-09-02');
+ const links=await N.obterNascimentos(ctx,{idInternacao:tr.novaIdInternacao});assert.equal(links.length,2);assert.equal(links[0].id_nascimento,n.idNascimento);
+ const painel=await require('../lib/painel').getPainelOperacionalData(ctx,'ALCON 1');assert.equal(painel.leitos.find(l=>l.ID_Leito==='A').nascimentosVinculados,2);
+ await move(tr.novaIdInternacao,'Alta','DOMICILIAR','','2026-09-03');
+ assert.equal((await N.obterAltasBinomio(ctx,{setor:'ALCON 1',inicio:'2026-09-01',fim:'2026-09-30'})).total,1);
+ const mc=await admit('CCO','C','MAE','Mãe cesárea');
+ const nc=await N.registrarNascimento(ctx,{...data,idInternacao:mc.idInternacao,tipoParto:'Normal'});
+ assert.equal((await N.obterNascimentos(ctx,{idInternacao:mc.idInternacao}))[0].tipo_parto,'Cesárea');
+ const tc=await move(mc.idInternacao,'Transferencia','ALCON 1','A2','2026-09-02');
+ const r=await O.registrarInternacao(ctx,{idNascimento:nc.idNascimento,setor:'ALCON 1',leitoId:'A2',data:'2026-09-02',hora:'11:00',procedencia:'CCO'});
+ const rnBefore=await one('SELECT * FROM internacoes WHERE id_internacao=$1',[r.idInternacao]);
+ await assert.rejects(O.registrarInternacao(ctx,{idNascimento:nc.idNascimento,setor:'UTIN 1',leitoId:'N',data:'2026-09-02',hora:'11:00'}),/já possui/);
+ await move(tc.novaIdInternacao,'Alta','DOMICILIAR','','2026-09-03');
+ const rnAfter=await one('SELECT * FROM internacoes WHERE id_internacao=$1',[r.idInternacao]);assert.equal(rnAfter.status,'Ativo');assert.deepEqual(rnAfter.data_hora_entrada,rnBefore.data_hora_entrada);assert.equal((await one("SELECT count(*)::int n FROM internacoes WHERE id_paciente=$1",[nc.idPaciente])).n,1);
+ assert.equal((await N.obterAltasBinomio(ctx,{setor:'ALCON 1',inicio:'2026-09-01',fim:'2026-09-30'})).total,1);
+ await bed('A3','ALCON 1');const ma=await admit('ALCON 1','A3','MAE','Mãe conjunta');const ra=await admit('ALCON 1','A3','RN','RN conjunto');
+ await O.registrarMovimentacao(ctx,{idInternacao:ma.idInternacao,tipoMovimento:'Alta',destino:'DOMICILIAR',data:'2026-09-04',hora:'10:00',altaBinomio:true});
+ assert.equal((await one('SELECT status FROM internacoes WHERE id_internacao=$1',[ra.idInternacao])).status,'Alta');
+ assert.equal((await one("SELECT status FROM leitos WHERE id_leito='A3'")).status,'Higienizacao');
+ assert.equal((await N.obterAltasBinomio(ctx,{setor:'ALCON 1',inicio:'2026-09-01',fim:'2026-09-30'})).total,2);
+ await assert.rejects(O.registrarMovimentacao(ctx,{idInternacao:ma.idInternacao,tipoMovimento:'Alta',data:'2026-09-04',hora:'10:00',altaBinomio:true}),/ativa não encontrada/);
+ console.log('OK: nascimento sem internação; gemelares; validação; duplicidade; ACL; vínculo após transferência; ícone; CCO cesárea; admissão RN existente; alta materna preserva RN; alta conjunta/ligada contadas uma vez; migração repetível.');
+ const fixture=[{id_parto:'gemeos',data_parto:'2026-08-31',data_nascimento:'2026-08-31',hora_nascimento:'23:59',condicao:'Nascido Vivo',dados:{AA:'M'},dados_parto:{R:'SIM'},tipo_parto:'Normal'}, {id_parto:'gemeos',data_parto:'2026-08-31',data_nascimento:'2026-09-01',hora_nascimento:'00:01',condicao:'Nascido Vivo',dados:{AA:'F'},dados_parto:{R:'SIM'},tipo_parto:'Normal'}];
+ const september=N.agregar(fixture,2026,9);assert.equal(september.kpis.partos,0);assert.equal(september.kpis.nascimentos,1);assert.equal(september.mensais[7].partos,1);assert.equal(september.mensais[8].partos,0);
+ assert.equal(dash.groups.R.series[0].meses[8],1);
+ console.log('OK: gemelares na virada de mês e séries mensais por indicador.');
+ await db.close();
+}
+main().catch(e=>{console.error(e);process.exit(1);});

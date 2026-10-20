@@ -150,12 +150,12 @@
   </div>
 
   <!-- Offcanvas Detalhes -->
-  <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasPaciente">
-    <div class="offcanvas-header bg-danger text-white">
+  <div class="modal fade" tabindex="-1" id="offcanvasPaciente">
+    <div class="modal-dialog modal-fullscreen"><div class="modal-content"><div class="modal-header bg-primary text-white">
       <h5 class="offcanvas-title fw-bold" id="offcanvasLabel"><i class="bi bi-person-badge me-2"></i>Detalhes do Leito</h5>
-      <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
+      <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
     </div>
-    <div class="offcanvas-body" id="offcanvasBody"></div>
+    <div class="modal-body" id="offcanvasBody"></div></div></div>
   </div>
 
   <!-- Modal Gerenciar Leitos -->
@@ -723,7 +723,7 @@
     let globalPacientesSemLeito = [];
     let listaSetoresGlobal = [];
 
-    const OPCOES_ORIGEM_BASE = ["DOMICILIAR", "ADMISSÃO", "CCO", "PPP", "UCINCA", "UCINCO", "UTIN 1", "UTIN 2", "UTIN 3", "ALCON 1", "ALCON 2", "SRPA", "UEN", "OUTRO HOSPITAL", "VAGA ZERO", "VIA PÚBLICA"];
+    const OPCOES_ORIGEM_BASE = ["DOMICILIAR", "ADMISSÃO", "CCO", "PPP", "CPNI", "UCINCA", "UCINCO", "UTIN 1", "UTIN 2", "UTIN 3", "ALCON 1", "ALCON 2", "SRPA", "UEN", "OUTRO HOSPITAL", "VAGA ZERO", "VIA PÚBLICA"];
     const ROTULO_SETOR = { "UEN": "Leito Extra CCO Neonatal" };
     function rotuloSetor(valor) { return ROTULO_SETOR[String(valor || '').trim().toUpperCase()] || String(valor || ''); }
     const OPCOES_PROCEDENCIA_EXTERNA = [
@@ -743,7 +743,7 @@
       "SAO PAULO DE OLIVENÇA","SAO SEBASTIAO DO UATUMÃ","SILVES","TABATINGA","TAPAUÁ","TEFÉ",
       "TONANTINS","UARINI","URUCARÁ","URUCURITUBA","OUTRA PROCEDÊNCIA"
     ];
-    const OPCOES_SETORES_INTERNOS = ["CCO","PPP","UCINCA","UCINCO","UTIN 1","UTIN 2","UTIN 3","ALCON 1","ALCON 2","UTI MATERNA","CUIDADOS ESPECIAIS","ABRIGO","UEN"];
+    const OPCOES_SETORES_INTERNOS = ["CCO","PPP","CPNI","UCINCA","UCINCO","UTIN 1","UTIN 2","UTIN 3","ALCON 1","ALCON 2","UTI MATERNA","CUIDADOS ESPECIAIS","ABRIGO","UEN"];
     const OPCOES_DESTINO_BASE = [
       "UEN","UCINCO","UTIN 1","UTIN 2","UTIN 3","ALCON 1","ALCON 2","UCINCA","CUIDADOS ESPECIAIS","ABRIGO",
       "HSP. ADRIANO JORGE","FND. ALFREDO DA MATA","MAT. ALVORADA","MAT. AZILDA MARREIRO",
@@ -1096,6 +1096,7 @@
       if (!data || String(data.setorAtual).toUpperCase() !== String(setorPedido).toUpperCase()) return;
       salvarCachePainel(setorPedido, data);
       mostrarPainelAtualizado(data);
+      if(window.NatusNascimentos)window.NatusNascimentos.refresh();
       statusAtualizacaoPainel((data.avisos || []).join(' '), !!(data.avisos || []).length);
     }
     function iniciarPainelComCache() {
@@ -1487,7 +1488,7 @@
       const radiosAleitamento = document.querySelectorAll('input[name="movAleitamento"]');
       radiosAleitamento.forEach(r => r.checked = false);
       atualizarOpcoesDestino();
-      const off = bootstrap.Offcanvas.getInstance(document.getElementById('offcanvasPaciente'));
+      const off = bootstrap.Modal.getInstance(document.getElementById('offcanvasPaciente'));
       if (off) off.hide();
       bootstrap.Modal.getOrCreateInstance(document.getElementById('modalMovimentacao')).show();
     }
@@ -1518,7 +1519,7 @@
       // Fecha o painel lateral antes de abrir o modal, evitando que o Offcanvas
       // fique sobreposto ao modal e capture os cliques.
       const offcanvasElement = document.getElementById('offcanvasPaciente');
-      const off = bootstrap.Offcanvas.getInstance(offcanvasElement);
+      const off = bootstrap.Modal.getInstance(offcanvasElement);
       if (off) off.hide();
 
       setTimeout(() => {
@@ -1828,8 +1829,9 @@
         </div>`;
 
       const offcanvasElement = document.getElementById('offcanvasPaciente');
-      const bsOffcanvas = new bootstrap.Offcanvas(offcanvasElement);
+      const bsOffcanvas = bootstrap.Modal.getOrCreateInstance(offcanvasElement);
       bsOffcanvas.show();
+      if(window.NatusNascimentos) window.NatusNascimentos.detalhes(leito,body);
     }
 
     function carregarDadosEdicao() {
@@ -1893,7 +1895,7 @@
     }
 
     function preencherEAbrirEdicao(idPaciente) {
-      const offcanvasElement = bootstrap.Offcanvas.getInstance(document.getElementById('offcanvasPaciente'));
+      const offcanvasElement = bootstrap.Modal.getInstance(document.getElementById('offcanvasPaciente'));
       if (offcanvasElement) offcanvasElement.hide();
 
       document.getElementById('editSelectPaciente').value = idPaciente;
@@ -2202,6 +2204,7 @@
         tipoPaciente: document.getElementById('movTipoPacienteWrap').classList.contains('d-none') ? '' : document.getElementById('movTipoPaciente').value,
         data: document.getElementById('movData').value,
         hora: document.getElementById('movHora').value,
+        altaBinomio: !!document.getElementById('movAltaBinomio')?.checked,
         tipoMovimento: document.getElementById('movTipo').value,
         destino: document.getElementById('movTipo').value === 'Alta' && document.getElementById('movDestino').value === 'OUTRO MUNICÍPIO'
           ? `OUTRO MUNICÍPIO - ${document.getElementById('movMunicipio').value}`
@@ -2267,5 +2270,6 @@
         .editarInternacao(payload);
     });
   </script>
+<script src="/natus-nascimentos.js?v=20261020"></script>
 </body>
 </html>
