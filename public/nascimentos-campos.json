@@ -475,5 +475,235 @@
     "label": "DATA DE ENCAMINHAMENTO",
     "scope": "parto",
     "type": "date"
+  },
+  {
+    "key": "AS",
+    "label": "DATA DO NASCIMENTO DO RN",
+    "scope": "rn",
+    "type": "date",
+    "required": true,
+    "setores": ["CCO"]
+  },
+  {
+    "key": "W",
+    "label": "HORA DO NASCIMENTO DO RN",
+    "scope": "rn",
+    "type": "time",
+    "required": true,
+    "setores": ["CCO"]
+  },
+  {
+    "key": "AA",
+    "label": "SEXO DO RN",
+    "scope": "rn",
+    "type": "select",
+    "options": ["M", "F", "INDEF."],
+    "required": true,
+    "setores": ["CCO"]
+  },
+  {
+    "key": "AB",
+    "label": "PESO AO NASCER (gramas)",
+    "scope": "rn",
+    "type": "number",
+    "min": 100,
+    "max": 10000,
+    "setores": ["CCO"]
+  },
+  {
+    "key": "AG",
+    "label": "CONTATO PELE A PELE IMEDIATO",
+    "scope": "rn",
+    "type": "select",
+    "options": ["SIM", "NÃO"],
+    "setores": ["CCO"]
+  },
+  {
+    "key": "AM",
+    "label": "AMAMENTAÇÃO NA 1ª HORA",
+    "scope": "rn",
+    "type": "select",
+    "options": ["SIM", "NÃO"],
+    "setores": ["CCO"]
+  },
+  {
+    "key": "C_FM",
+    "label": "FM — FETO MORTO?",
+    "scope": "rn",
+    "type": "select",
+    "options": ["NÃO", "SIM"],
+    "relatorio": false,
+    "setores": ["CCO"]
+  },
+  {
+    "key": "C_IG",
+    "label": "IDADE GESTACIONAL (SEMANAS)",
+    "scope": "parto",
+    "type": "number",
+    "min": 20,
+    "max": 45,
+    "grupo": "Procedimento e indicação",
+    "setores": ["CCO"]
+  },
+  {
+    "key": "C_IGCL",
+    "label": "CLASSIFICAÇÃO DA IDADE GESTACIONAL",
+    "scope": "parto",
+    "type": "select",
+    "options": ["PREMATURO EXTREMO", "MUITO PREMATURO", "PREMATURO MODERADO", "TERMO", "PÓS-TERMO"],
+    "grupo": "Procedimento e indicação",
+    "setores": ["CCO"]
+  },
+  {
+    "key": "C_PROC1",
+    "label": "PROCEDIMENTO 1",
+    "scope": "parto",
+    "type": "select",
+    "options": ["Parto Cesárea", "Parto Normal"],
+    "grupo": "Procedimento e indicação",
+    "setores": ["CCO"]
+  },
+  {
+    "key": "C_PROC2",
+    "label": "PROCEDIMENTO 2",
+    "scope": "parto",
+    "type": "select",
+    "options": ["Laqueadura", "Histerectomia", "Laparotomia", "AMIU"],
+    "grupo": "Procedimento e indicação",
+    "setores": ["CCO"]
+  },
+  {
+    "key": "C_PF",
+    "label": "PLANEJAMENTO FAMILIAR MAB",
+    "scope": "parto",
+    "type": "select",
+    "options": ["SIM", "NÃO"],
+    "grupo": "Procedimento e indicação",
+    "setores": ["CCO"]
+  },
+  {
+    "key": "C_IND",
+    "label": "INDICAÇÕES",
+    "scope": "parto",
+    "type": "text",
+    "datalist": ["Abdômen agudo", "Adramnia", "Amniorrex prematura", "Apendicite", "Apresentação Córmica", "Apresentação Pélvica", "Bradicardia", "Centralização fetal", "Cesárea anterior", "Colestase", "DCP", "DHEG", "DM", "DMG", "DPP", "Eclâmpsia", "Falha de indução", "FM", "Gastroesquise", "Gemelaridade", "Gestação ectópica", "Gravidez tubária íntegra", "Gravidez tubária rota", "Hematoma de parede", "Hidrocefalia", "Iteratividade", "Má formação fetal", "Macrossomia fetal", "Mecônio", "Mielomelingocele", "Miomatose", "Óbito fetal", "Oligodramnia", "Parada de progressão", "Placenta prévia", "Polidramnia", "Pós datismo", "Pré-eclâmpsia", "Projeto Nascer", "Prolápso de cordão", "Restos ovulares", "SHEG", "Síndrome de HELLP", "Sofrimento fetal", "Taquicardia"],
+    "grupo": "Procedimento e indicação",
+    "setores": ["CCO"]
+  },
+  {
+    "key": "C_SALA",
+    "label": "Nº DA SALA CIRÚRGICA",
+    "scope": "parto",
+    "type": "select",
+    "options": ["1", "2"],
+    "grupo": "Equipe e sala cirúrgica",
+    "setores": ["CCO"]
+  },
+  {
+    "key": "C_CIRURGIAO",
+    "label": "CIRURGIÃO",
+    "scope": "parto",
+    "type": "text",
+    "grupo": "Equipe e sala cirúrgica",
+    "setores": ["CCO"]
+  },
+  {
+    "key": "C_AUX",
+    "label": "AUXILIAR DE CIRURGIA",
+    "scope": "parto",
+    "type": "text",
+    "grupo": "Equipe e sala cirúrgica",
+    "setores": ["CCO"]
+  },
+  {
+    "key": "C_ANEST",
+    "label": "ANESTESISTA",
+    "scope": "parto",
+    "type": "text",
+    "grupo": "Equipe e sala cirúrgica",
+    "setores": ["CCO"]
+  },
+  {
+    "key": "C_TIPOANEST",
+    "label": "TIPO DE ANESTESIA",
+    "scope": "parto",
+    "type": "select",
+    "options": ["Raque", "Peridural", "Sedação", "Geral", "Local", "Combinada"],
+    "grupo": "Equipe e sala cirúrgica",
+    "setores": ["CCO"]
+  },
+  {
+    "key": "C_PEDIATRA",
+    "label": "PEDIATRA",
+    "scope": "parto",
+    "type": "text",
+    "grupo": "Equipe e sala cirúrgica",
+    "setores": ["CCO"]
+  },
+  {
+    "key": "C_ENF",
+    "label": "ENFERMEIRO",
+    "scope": "parto",
+    "type": "text",
+    "grupo": "Equipe e sala cirúrgica",
+    "setores": ["CCO"]
+  },
+  {
+    "key": "C_INICIO",
+    "label": "INÍCIO DA CIRURGIA",
+    "scope": "parto",
+    "type": "time",
+    "grupo": "Tempos e segurança",
+    "setores": ["CCO"]
+  },
+  {
+    "key": "C_FIM",
+    "label": "TÉRMINO DA CIRURGIA",
+    "scope": "parto",
+    "type": "time",
+    "grupo": "Tempos e segurança",
+    "setores": ["CCO"]
+  },
+  {
+    "key": "C_ANTIB",
+    "label": "ANTIBIÓTICO ADMINISTRADO (NOME)",
+    "scope": "parto",
+    "type": "text",
+    "datalist": ["CEFAZOLINA", "CEFALOTINA", "CEFTRIAXONA", "CLINDAMICINA", "METRONIDAZOL", "AMPICILINA", "NÃO FEZ", "EM S.O"],
+    "grupo": "Tempos e segurança",
+    "setores": ["CCO"]
+  },
+  {
+    "key": "C_ANTIBHORA",
+    "label": "HORÁRIO DO ANTIBIÓTICO",
+    "scope": "parto",
+    "type": "text",
+    "grupo": "Tempos e segurança",
+    "setores": ["CCO"]
+  },
+  {
+    "key": "C_CHECK",
+    "label": "CHECK LIST DE CIRURGIA SEGURA",
+    "scope": "parto",
+    "type": "select",
+    "options": ["SIM", "NÃO"],
+    "grupo": "Tempos e segurança",
+    "setores": ["CCO"]
+  },
+  {
+    "key": "C_LIMP_INI",
+    "label": "LIMPEZA DA SALA — INÍCIO",
+    "scope": "parto",
+    "type": "time",
+    "grupo": "Tempos e segurança",
+    "setores": ["CCO"]
+  },
+  {
+    "key": "C_LIMP_FIM",
+    "label": "LIMPEZA DA SALA — TÉRMINO",
+    "scope": "parto",
+    "type": "time",
+    "grupo": "Tempos e segurança",
+    "setores": ["CCO"]
   }
 ]
